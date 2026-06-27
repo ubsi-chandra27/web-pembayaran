@@ -1,8 +1,8 @@
 import { Banknote, CreditCard, FileText, Search, WalletCards } from "lucide-react";
 
 import { DeletePaymentButton } from "@/components/payment-report-actions";
+import { PrintButton } from "@/components/print-button";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,10 +30,36 @@ function statusLabel(status: string) {
   return "Menunggu";
 }
 
-export default async function AdminPembayaranPage() {
+export default async function AdminPembayaranPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; method?: string; status?: string; month?: string }>;
+}) {
+  const { q = "", method = "", status = "", month = "" } = await searchParams;
+  const monthStart = month ? new Date(`${month}-01T00:00:00.000Z`) : null;
+  const monthEnd = monthStart
+    ? new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1))
+    : null;
   const [user, payments] = await Promise.all([
     getCurrentUser(),
     prisma.payment.findMany({
+      where: {
+        ...(method ? { method } : {}),
+        ...(status ? { status } : {}),
+        ...(monthStart && monthEnd ? { paidAt: { gte: monthStart, lt: monthEnd } } : {}),
+        ...(q
+          ? {
+              OR: [
+                { method: { contains: q } },
+                { paymentNumber: { contains: q } },
+                { invoice: { invoiceNumber: { contains: q } } },
+                { invoice: { title: { contains: q } } },
+                { invoice: { student: { fullName: { contains: q } } } },
+                { invoice: { student: { nis: { contains: q } } } },
+              ],
+            }
+          : {}),
+      },
       include: {
         invoice: {
           include: {
@@ -79,10 +105,7 @@ export default async function AdminPembayaranPage() {
             Transaksi tunai diinput dari menu Transaksi. Halaman ini khusus untuk membaca, mencari, dan mencetak laporan.
           </p>
         </div>
-        <Button variant="outline" className="bg-white">
-          <FileText className="size-4" />
-          Cetak Laporan
-        </Button>
+        <PrintButton label="Cetak Laporan" />
       </div>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -107,24 +130,35 @@ export default async function AdminPembayaranPage() {
 
       <Card className="border-slate-200 bg-white">
         <CardHeader className="border-b border-slate-100">
-          <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto]">
+          <form className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto_auto]">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-              <Input placeholder="Cari invoice, siswa, atau metode..." className="h-10 bg-white pl-9" />
+              <Input
+                name="q"
+                defaultValue={q}
+                placeholder="Cari invoice, siswa, atau metode..."
+                className="h-10 bg-white pl-9"
+              />
             </div>
-            <select className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
-              <option>Semua metode</option>
-              <option>Transfer</option>
-              <option>Tunai</option>
+            <select name="method" defaultValue={method} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
+              <option value="">Semua metode</option>
+              <option value="TRANSFER">Transfer</option>
+              <option value="TUNAI">Tunai</option>
+              <option value="EWALLET">E-wallet</option>
+              <option value="QRIS">QRIS</option>
             </select>
-            <select className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
-              <option>Semua status</option>
-              <option>Terverifikasi</option>
-              <option>Menunggu</option>
-              <option>Ditolak</option>
+            <select name="status" defaultValue={status} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
+              <option value="">Semua status</option>
+              <option value="TERVERIFIKASI">Terverifikasi</option>
+              <option value="MENUNGGU_VERIFIKASI">Menunggu</option>
+              <option value="DITOLAK">Ditolak</option>
+              <option value="DIBATALKAN">Dibatalkan</option>
             </select>
-            <Input type="month" defaultValue="2026-07" className="h-10 bg-white" />
-          </div>
+            <Input name="month" type="month" defaultValue={month} className="h-10 bg-white" />
+            <button className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              Filter
+            </button>
+          </form>
         </CardHeader>
         <CardContent className="pt-4">
           <Table>

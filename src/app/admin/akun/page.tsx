@@ -1,6 +1,7 @@
 import { KeyRound, Search, UserCog } from "lucide-react";
 
 import { updateUserAccount } from "@/app/admin/actions";
+import { CreateAccountDialog } from "@/components/account-admin-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -56,16 +57,19 @@ export default async function AkunPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-wide text-[#078435]">
-          Manajemen akun
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold text-slate-950">
-          Akun Pengguna
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Kelola role, status, dan reset password akun lokal.
-        </p>
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-[#078435]">
+            Manajemen akun
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold text-slate-950">
+            Akun Pengguna
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Kelola role, status, tambah akun, dan reset password akun lokal.
+          </p>
+        </div>
+        <CreateAccountDialog />
       </div>
 
       <Card className="border-slate-200 bg-white">

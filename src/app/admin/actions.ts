@@ -796,6 +796,38 @@ export async function updateUserAccount(formData: FormData) {
   revalidatePath("/admin/siswa");
 }
 
+export async function createUserAccount(formData: FormData) {
+  await requireRole("account.manage");
+
+  const name = text(formData, "name");
+  const email = text(formData, "email");
+  const phone = text(formData, "phone");
+  const role = text(formData, "role");
+  const password = text(formData, "password") || "demo12345";
+
+  if (!name || !role || (!email && !phone)) {
+    throw new Error("Nama, role, dan minimal email/WhatsApp wajib diisi.");
+  }
+
+  await prisma.user.create({
+    data: {
+      name,
+      email: email || null,
+      phone: phone || null,
+      role,
+      passwordHash: hashPassword(password),
+      status: "ACTIVE",
+    },
+  });
+
+  revalidatePath("/admin/akun");
+
+  return {
+    ok: true,
+    message: `Akun ${name} berhasil dibuat.`,
+  };
+}
+
 export async function approvePayment(formData: FormData) {
   const user = await requireRole("payment.verify");
   const paymentId = text(formData, "paymentId");
@@ -1119,6 +1151,35 @@ export async function updateSchoolIdentity(formData: FormData) {
     ok: true,
     message: "Identitas sekolah berhasil disimpan.",
   };
+}
+
+export async function saveBankAccount(formData: FormData) {
+  await requireRole("settings.update");
+
+  const bankName = text(formData, "bankName");
+  const accountNumber = text(formData, "accountNumber");
+  const accountHolder = text(formData, "accountHolder");
+
+  if (!bankName || !accountNumber || !accountHolder) {
+    throw new Error("Nama bank, nomor rekening, dan atas nama wajib diisi.");
+  }
+
+  const existing = await prisma.bankAccount.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const data = { bankName, accountNumber, accountHolder, isActive: true };
+
+  if (existing) {
+    await prisma.bankAccount.update({ where: { id: existing.id }, data });
+  } else {
+    await prisma.bankAccount.create({ data });
+  }
+
+  revalidatePath("/admin/pengaturan/identitas-sekolah");
+
+  return { ok: true, message: "Rekening bank berhasil disimpan." };
 }
 
 export async function updateSppTariff(formData: FormData) {

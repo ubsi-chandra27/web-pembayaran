@@ -1,8 +1,6 @@
-import { FileText } from "lucide-react";
-
 import { LedgerTable, type LedgerRow } from "./ledger-table";
 import { TabunganForm } from "./tabungan-form";
-import { Button } from "@/components/ui/button";
+import { PrintButton } from "@/components/print-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
@@ -62,10 +60,7 @@ export default async function AdminTabunganPage() {
             Setoran, penarikan, dan ledger saldo
           </h1>
         </div>
-        <Button variant="outline" className="bg-white">
-          <FileText className="size-4" />
-          Cetak Buku Tabungan
-        </Button>
+        <PrintButton label="Cetak Buku Tabungan" />
       </div>
 
       {/* Stats */}

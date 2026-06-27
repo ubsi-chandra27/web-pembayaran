@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { CheckCircle2, FileImage, Search, XCircle } from "lucide-react";
+import { FileImage, Search } from "lucide-react";
 
-import { approvePayment, rejectPayment } from "../actions";
+import { PaymentVerificationActions } from "@/components/payment-verification-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -127,31 +126,7 @@ export default async function VerifikasiPage({
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="grid gap-2">
-                        <form action={approvePayment}>
-                          <input type="hidden" name="paymentId" value={payment.id} />
-                          <Button className="h-9 w-full bg-[#10b447] text-white hover:bg-[#078435]">
-                            <CheckCircle2 className="size-4" />
-                            Setujui
-                          </Button>
-                        </form>
-                        <form action={rejectPayment} className="grid gap-2">
-                          <input type="hidden" name="paymentId" value={payment.id} />
-                          <Textarea
-                            name="rejectionReason"
-                            placeholder="Alasan penolakan..."
-                            className="min-h-16 bg-white"
-                            required
-                          />
-                          <Button
-                            variant="outline"
-                            className="h-9 border-rose-200 bg-white text-rose-700"
-                          >
-                            <XCircle className="size-4" />
-                            Tolak
-                          </Button>
-                        </form>
-                      </div>
+                      <PaymentVerificationActions paymentId={payment.id} />
                     </TableCell>
                   </TableRow>
                 );
