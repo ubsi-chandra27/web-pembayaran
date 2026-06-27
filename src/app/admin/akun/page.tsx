@@ -1,12 +1,6 @@
 import { Search, Users } from "lucide-react";
 
-import {
-  avatarClass,
-  CreateAccountDialog,
-  EditAccountDialog,
-  roleBadgeClass,
-  roleLabel,
-} from "@/components/account-admin-actions";
+import { CreateAccountDialog, EditAccountDialog } from "@/components/account-admin-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -19,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { avatarClass, roleBadgeClass, roleLabel } from "@/lib/account-format";
 import { prisma } from "@/lib/prisma";
 
 const roles = [
