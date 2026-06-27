@@ -1,7 +1,12 @@
-import { KeyRound, Search, UserCog } from "lucide-react";
+import { Search, Users } from "lucide-react";
 
-import { updateUserAccount } from "@/app/admin/actions";
-import { CreateAccountDialog } from "@/components/account-admin-actions";
+import {
+  avatarClass,
+  CreateAccountDialog,
+  EditAccountDialog,
+  roleBadgeClass,
+  roleLabel,
+} from "@/components/account-admin-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -24,13 +29,6 @@ const roles = [
   "KEPALA_SEKOLAH",
   "GURU",
 ];
-
-function roleLabel(role: string) {
-  return role
-    .split("_")
-    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
-    .join(" ");
-}
 
 export default async function AkunPage({
   searchParams,
@@ -55,23 +53,25 @@ export default async function AkunPage({
     orderBy: { name: "asc" },
   });
 
+  const totalActive = users.filter((u) => u.status === "ACTIVE").length;
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-[#078435]">
             Manajemen akun
           </p>
-          <h1 className="mt-1 text-2xl font-semibold text-slate-950">
-            Akun Pengguna
-          </h1>
+          <h1 className="mt-1 text-2xl font-semibold text-slate-950">Akun Pengguna</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Kelola role, status, tambah akun, dan reset password akun lokal.
+            Kelola role, status, dan reset password — {totalActive} akun aktif.
           </p>
         </div>
         <CreateAccountDialog />
       </div>
 
+      {/* Table card */}
       <Card className="border-slate-200 bg-white">
         <CardHeader className="border-b border-slate-100">
           <form className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -85,7 +85,11 @@ export default async function AkunPage({
               />
             </div>
             <div className="flex gap-2">
-              <select name="role" defaultValue={role} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
+              <select
+                name="role"
+                defaultValue={role}
+                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm"
+              >
                 <option value="">Semua role</option>
                 {roles.map((item) => (
                   <option key={item} value={item}>
@@ -93,86 +97,125 @@ export default async function AkunPage({
                   </option>
                 ))}
               </select>
-              <Button variant="outline" className="h-10 bg-white">Filter</Button>
+              <Button variant="outline" className="h-10 bg-white">
+                Filter
+              </Button>
             </div>
           </form>
         </CardHeader>
-        <CardContent className="pt-4">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Pengguna</TableHead>
-                  <TableHead>Kontak</TableHead>
-                  <TableHead>Anak terkait</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Password Baru</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => {
-                  const children = user.guardians.flatMap((guardian) =>
-                    guardian.students.map((item) => item.student.fullName)
-                  );
 
-                  return (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <UserCog className="size-4 text-[#078435]" />
-                          <span className="font-medium text-slate-950">{user.name}</span>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <TableHead className="pl-6">Pengguna</TableHead>
+                <TableHead>Kontak</TableHead>
+                <TableHead>Siswa terkait</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="pr-6 text-right">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-16 text-center">
+                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                      <Users className="size-8 opacity-40" />
+                      <p className="text-sm">Tidak ada akun ditemukan.</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+              {users.map((user) => {
+                const children = user.guardians.flatMap((g) =>
+                  g.students.map((s) => s.student.fullName),
+                );
+                const initials = user.name
+                  .split(" ")
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((w) => w[0].toUpperCase())
+                  .join("");
+
+                return (
+                  <TableRow key={user.id} className="group">
+                    {/* Pengguna */}
+                    <TableCell className="pl-6">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`flex size-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white ${avatarClass(user.role)}`}
+                        >
+                          {initials}
+                        </span>
+                        <div>
+                          <p className="font-medium text-slate-950">{user.name}</p>
+                          <p className="text-xs text-slate-400">{user.email ?? "-"}</p>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <p>{user.email ?? "-"}</p>
-                        <p className="text-xs text-slate-500">{user.phone ?? "-"}</p>
-                      </TableCell>
-                      <TableCell className="text-sm text-slate-600">
-                        {children.length > 0 ? children.join(", ") : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <form id={`account-${user.id}`} action={updateUserAccount}>
-                          <input type="hidden" name="id" value={user.id} />
-                          <select name="role" defaultValue={user.role} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm">
-                            {roles.map((item) => (
-                              <option key={item} value={item}>
-                                {roleLabel(item)}
-                              </option>
-                            ))}
-                          </select>
-                        </form>
-                      </TableCell>
-                      <TableCell>
-                        <select form={`account-${user.id}`} name="status" defaultValue={user.status} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm">
-                          <option value="ACTIVE">Aktif</option>
-                          <option value="INACTIVE">Nonaktif</option>
-                        </select>
-                        <Badge className={user.status === "ACTIVE" ? "ml-2 bg-[#e7f3d7] text-[#078435]" : "ml-2 bg-slate-100 text-slate-700"}>
-                          {user.status === "ACTIVE" ? "Aktif" : "Nonaktif"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          form={`account-${user.id}`}
-                          name="password"
-                          placeholder="Kosongkan jika tidak reset"
-                          className="h-9 min-w-52 bg-white"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button form={`account-${user.id}`} size="sm" className="bg-[#10b447] text-white hover:bg-[#078435]">
-                          <KeyRound className="size-4" />
-                          Simpan
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+                      </div>
+                    </TableCell>
+
+                    {/* Kontak */}
+                    <TableCell className="text-sm text-slate-600">
+                      {user.phone ?? (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </TableCell>
+
+                    {/* Siswa terkait */}
+                    <TableCell>
+                      {children.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {children.map((name) => (
+                            <Badge
+                              key={name}
+                              className="bg-slate-100 text-xs font-normal text-slate-600"
+                            >
+                              {name}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-slate-300">—</span>
+                      )}
+                    </TableCell>
+
+                    {/* Role */}
+                    <TableCell>
+                      <Badge className={`text-xs ${roleBadgeClass(user.role)}`}>
+                        {roleLabel(user.role)}
+                      </Badge>
+                    </TableCell>
+
+                    {/* Status */}
+                    <TableCell>
+                      <Badge
+                        className={
+                          user.status === "ACTIVE"
+                            ? "bg-[#e7f3d7] text-[#078435]"
+                            : "bg-slate-100 text-slate-500"
+                        }
+                      >
+                        {user.status === "ACTIVE" ? "Aktif" : "Nonaktif"}
+                      </Badge>
+                    </TableCell>
+
+                    {/* Aksi */}
+                    <TableCell className="pr-6 text-right">
+                      <EditAccountDialog
+                        user={{
+                          id: user.id,
+                          name: user.name,
+                          role: user.role,
+                          status: user.status,
+                        }}
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>
