@@ -23,15 +23,22 @@
 # misc
 .DS_Store
 *.pem
+.refact/
 
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+.next-dev*.log
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# local database files
+*.db
+*.db-journal
 
 # vercel
 .vercel
