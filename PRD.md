@@ -1264,11 +1264,11 @@ Production:
 - Kepala sekolah dapat melihat dashboard tanpa mengubah data transaksi.
 - Semua aksi penting tercatat di audit log.
 
-## 14. Status Implementasi Prototype Web Lokal
+## 14. Status Implementasi Aplikasi Web Lokal
 
 Tanggal pembaruan: 27 Juni 2026.
 
-Bagian ini mencatat kondisi implementasi aplikasi lokal saat ini agar PRD tetap sinkron dengan kode.
+Bagian ini mencatat kondisi implementasi aplikasi web lokal saat ini agar PRD tetap sinkron dengan kode.
 
 ### 14.1 Stack dan Database Saat Ini
 
@@ -1302,6 +1302,11 @@ Bagian ini mencatat kondisi implementasi aplikasi lokal saat ini agar PRD tetap 
   - edit kelas,
   - hapus kelas terpilih oleh checkbox.
 - Pengaturan Identitas Sekolah sudah tersimpan ke database dan dipakai di kwitansi/kartu.
+- Pengaturan Identitas Sekolah sudah memiliki form Rekening Pembayaran Resmi:
+  - nama bank,
+  - no rekening,
+  - atas nama.
+- Rekening pembayaran resmi tersimpan ke tabel `bank_accounts` dan dipakai sebagai data rujukan pembayaran sekolah.
 - Pengaturan Tarif Pokok sudah tersimpan ke database.
 - SPP adalah tarif wajib dan tidak dapat dihapus.
 - Tarif pokok tambahan tidak memakai kategori.

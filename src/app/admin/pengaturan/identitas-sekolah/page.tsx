@@ -26,6 +26,13 @@ export default async function IdentitasSekolahPage() {
       setting?.receiptNotes ??
       "- Disimpan sebagai bukti pembayaran yang sah\n- Uang yang sudah dibayarkan tidak dapat diminta kembali",
   };
+  const activeBankAccount = bankAccount
+    ? {
+        bankName: bankAccount.bankName,
+        accountNumber: bankAccount.accountNumber,
+        accountHolder: bankAccount.accountHolder,
+      }
+    : null;
 
   return (
     <div className="space-y-6">
@@ -41,42 +48,34 @@ export default async function IdentitasSekolahPage() {
         </p>
       </div>
 
-      <section className="grid gap-6 xl:grid-cols-[0.78fr_1.22fr]">
-        <Card className="border-[#b7d889] bg-white">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ImageUp className="size-5 text-[#078435]" />
-              Logo Sekolah
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="flex flex-col items-center rounded-lg border border-dashed border-[#b7d889] bg-[#f3f8ea] p-6 text-center">
-              <SchoolLogo className="size-28" />
-              <p className="mt-4 text-sm font-medium text-slate-950">Logo aktif TK Islam Azkia</p>
-              <p className="mt-1 text-xs text-slate-500">
-                Nantinya admin dapat mengunggah PNG transparan untuk semua dokumen.
-              </p>
-            </div>
-            <Button variant="outline" className="w-full bg-white">
-              Pilih Logo Baru
-            </Button>
-          </CardContent>
-        </Card>
+      <section className="grid items-start gap-6 xl:grid-cols-[0.82fr_1.18fr]">
+        <div className="space-y-6">
+          <Card className="border-[#b7d889] bg-white">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ImageUp className="size-5 text-[#078435]" />
+                Logo Sekolah
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="flex flex-col items-center rounded-lg border border-dashed border-[#b7d889] bg-[#f3f8ea] p-6 text-center">
+                <SchoolLogo className="size-28" />
+                <p className="mt-4 text-sm font-medium text-slate-950">Logo aktif TK Islam Azkia</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Nantinya admin dapat mengunggah PNG transparan untuk semua dokumen.
+                </p>
+              </div>
+              <Button variant="outline" className="w-full bg-white">
+                Pilih Logo Baru
+              </Button>
+            </CardContent>
+          </Card>
+
+          <BankAccountForm account={activeBankAccount} />
+        </div>
 
         <SchoolIdentityForm school={school} />
       </section>
-
-      <BankAccountForm
-        account={
-          bankAccount
-            ? {
-                bankName: bankAccount.bankName,
-                accountNumber: bankAccount.accountNumber,
-                accountHolder: bankAccount.accountHolder,
-              }
-            : null
-        }
-      />
 
       <Card className="border-slate-200 bg-white">
         <CardHeader>
@@ -101,7 +100,7 @@ export default async function IdentitasSekolahPage() {
             <div className="flex items-center gap-3 rounded-lg border border-[#b7d889] bg-[#f3f8ea] px-4 py-3">
               <p className="text-sm text-slate-500">Pembayaran via transfer ke</p>
               <p className="font-semibold text-slate-950">
-                {bankAccount.bankName} · {bankAccount.accountNumber}
+                {bankAccount.bankName} - {bankAccount.accountNumber}
               </p>
               <p className="text-sm text-slate-600">a.n. {bankAccount.accountHolder}</p>
             </div>

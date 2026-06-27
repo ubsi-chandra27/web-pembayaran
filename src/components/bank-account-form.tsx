@@ -44,11 +44,16 @@ export function BankAccountForm({ account }: { account: BankAccount | null }) {
   return (
     <form action={handleSubmit}>
       <Card className="border-slate-200 bg-white">
-        <CardHeader className="flex-row items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2">
-            <Landmark className="size-5 text-[#078435]" />
-            Rekening Bank Sekolah
-          </CardTitle>
+        <CardHeader className="flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Landmark className="size-5 text-[#078435]" />
+              Rekening Pembayaran Resmi
+            </CardTitle>
+            <p className="mt-1 text-sm text-slate-500">
+              Diambil untuk landing, instruksi bayar, dan kwitansi.
+            </p>
+          </div>
           {account ? (
             <Badge className="bg-[#e7f3d7] text-[#078435]">Aktif</Badge>
           ) : (
@@ -68,7 +73,7 @@ export function BankAccountForm({ account }: { account: BankAccount | null }) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="accountNumber">Nomor Rekening</Label>
+            <Label htmlFor="accountNumber">No Rekening</Label>
             <Input
               id="accountNumber"
               name="accountNumber"
