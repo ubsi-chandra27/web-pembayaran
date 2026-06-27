@@ -19,6 +19,7 @@ import {
   EditInvoiceDialog,
   InvoiceFilterButton,
 } from "@/components/invoice-admin-actions";
+import { getCurrentUser } from "@/lib/auth";
 import { formatCurrency, toInputDate } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
@@ -44,7 +45,8 @@ export default async function AdminTagihanPage({
   searchParams: Promise<{ q?: string; status?: string; tariffId?: string }>;
 }) {
   const { q = "", status = "", tariffId = "" } = await searchParams;
-  const [students, tariffs, classes, invoices] = await Promise.all([
+  const [user, students, tariffs, classes, invoices] = await Promise.all([
+    getCurrentUser(),
     prisma.student.findMany({
       where: { status: "ACTIVE" },
       include: { class: true },
@@ -80,6 +82,7 @@ export default async function AdminTagihanPage({
       take: 75,
     }),
   ]);
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const tariffOptions = tariffs.map((tariff) => ({
     id: tariff.id,
     name: tariff.name,
@@ -203,7 +206,12 @@ export default async function AdminTagihanPage({
                               status: invoice.status,
                             }}
                           />
-                          <CancelInvoiceButton invoiceId={invoice.id} disabled={actionDisabled} />
+                          <CancelInvoiceButton
+                            invoiceId={invoice.id}
+                            invoiceNumber={invoice.invoiceNumber}
+                            disabled={!isSuperAdmin && actionDisabled}
+                            permanent={isSuperAdmin}
+                          />
                         </div>
                       </TableCell>
                     </TableRow>

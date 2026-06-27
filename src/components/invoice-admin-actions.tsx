@@ -3,12 +3,13 @@
 import { useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Edit, Filter, Loader2, Plus, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { AlertTriangle, Edit, Filter, Loader2, Plus, SlidersHorizontal, Trash2, X } from "lucide-react";
 
 import {
   cancelInvoice,
   createBulkInvoices,
   createIndividualInvoice,
+  deleteInvoiceAsSuperAdmin,
   updateInvoice,
 } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
@@ -398,13 +399,132 @@ export function EditInvoiceDialog({ invoice }: { invoice: InvoiceRow }) {
   );
 }
 
-export function CancelInvoiceButton({ invoiceId, disabled }: { invoiceId: string; disabled: boolean }) {
+export function CancelInvoiceButton({
+  invoiceId,
+  invoiceNumber,
+  disabled,
+  permanent = false,
+}: {
+  invoiceId: string;
+  invoiceNumber: string;
+  disabled: boolean;
+  permanent?: boolean;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  function handleConfirm() {
+    const formData = new FormData();
+    formData.set("id", invoiceId);
+
+    startTransition(async () => {
+      try {
+        const message = permanent
+          ? (await deleteInvoiceAsSuperAdmin(formData)).message
+          : `${invoiceNumber} berhasil dibatalkan.`;
+
+        if (!permanent) {
+          await cancelInvoice(formData);
+        }
+        setOpen(false);
+        toast({
+          type: "success",
+          title: permanent ? "Tagihan dihapus permanen" : "Tagihan dibatalkan",
+          description: message,
+        });
+        router.refresh();
+      } catch (error) {
+        toast({
+          type: "error",
+          title: permanent ? "Gagal menghapus tagihan" : "Gagal membatalkan tagihan",
+          description: error instanceof Error ? error.message : "Terjadi kesalahan.",
+        });
+      }
+    });
+  }
+
   return (
-    <form action={cancelInvoice}>
-      <input type="hidden" name="id" value={invoiceId} />
-      <Button variant="ghost" size="icon" disabled={disabled} className="text-rose-700" aria-label="Batalkan tagihan">
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+        className="text-rose-700 hover:bg-rose-50"
+        aria-label={permanent ? "Hapus permanen tagihan" : "Batalkan tagihan"}
+      >
         <Trash2 className="size-4" />
       </Button>
-    </form>
+
+      {open && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/35 px-4 backdrop-blur-sm">
+          <div className="w-[min(460px,calc(100vw-2rem))] overflow-hidden rounded-lg bg-white shadow-2xl ring-1 ring-slate-200">
+            <div className="flex justify-end p-3">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => !isPending && setOpen(false)}
+                aria-label="Tutup modal"
+                disabled={isPending}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+            <div className="px-6 pb-6 text-center">
+              <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-amber-50 text-amber-600 ring-1 ring-amber-200">
+                <AlertTriangle className="size-9" />
+              </span>
+              <h2 className="mt-5 text-xl font-bold text-slate-950">
+                {permanent ? "Hapus permanen tagihan?" : "Batalkan tagihan?"}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                {permanent
+                  ? `Invoice ${invoiceNumber} akan dihapus permanen dari database beserta payment, bukti, dan receipt terkait.`
+                  : `Invoice ${invoiceNumber} akan diubah statusnya menjadi DIBATALKAN.`}
+              </p>
+              <div
+                className={`mt-5 rounded-lg border px-4 py-3 text-left text-sm font-medium ${
+                  permanent
+                    ? "border-rose-200 bg-rose-50 text-rose-700"
+                    : "border-amber-200 bg-amber-50 text-amber-800"
+                }`}
+              >
+                {permanent
+                  ? "Gunakan hanya untuk salah input data demo. Aksi ini tidak bisa dikembalikan dan dicatat di audit log."
+                  : "Data tagihan tetap tersimpan sebagai arsip, tetapi tidak ditagihkan lagi."}
+              </div>
+            </div>
+            <div className="grid gap-3 border-t border-slate-100 bg-slate-50 p-4 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 bg-white"
+                onClick={() => setOpen(false)}
+                disabled={isPending}
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirm}
+                disabled={isPending}
+                className="h-11 bg-rose-600 text-white hover:bg-rose-700"
+              >
+                {isPending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                {isPending
+                  ? permanent
+                    ? "Menghapus..."
+                    : "Membatalkan..."
+                  : permanent
+                    ? "Ya, Hapus Permanen"
+                    : "Ya, Batalkan"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

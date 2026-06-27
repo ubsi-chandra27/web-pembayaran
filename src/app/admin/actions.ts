@@ -771,6 +771,82 @@ export async function cancelInvoice(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function deleteInvoiceAsSuperAdmin(formData: FormData) {
+  const user = await requireSuperAdmin();
+  const id = text(formData, "id");
+
+  if (!id) {
+    throw new Error("Invoice tidak ditemukan.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const invoice = await tx.invoice.findUnique({
+      where: { id },
+      include: {
+        student: true,
+        tariff: true,
+        payments: {
+          include: {
+            proofs: true,
+            receipt: true,
+          },
+        },
+      },
+    });
+
+    if (!invoice) {
+      throw new Error("Invoice tidak ditemukan.");
+    }
+
+    const paymentIds = invoice.payments.map((payment) => payment.id);
+
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "INVOICE_PERMANENTLY_DELETED_BY_SUPER_ADMIN",
+        entity: "invoices",
+        entityId: invoice.id,
+        before: {
+          invoiceNumber: invoice.invoiceNumber,
+          studentId: invoice.studentId,
+          studentName: invoice.student.fullName,
+          tariffName: invoice.tariff.name,
+          title: invoice.title,
+          status: invoice.status,
+          amount: invoice.amount.toNumber(),
+          totalAmount: invoice.totalAmount.toNumber(),
+          paymentCount: invoice.payments.length,
+          proofCount: invoice.payments.reduce(
+            (count, payment) => count + payment.proofs.length,
+            0
+          ),
+        },
+      },
+    });
+
+    if (paymentIds.length > 0) {
+      await tx.paymentProof.deleteMany({ where: { paymentId: { in: paymentIds } } });
+      await tx.receipt.deleteMany({ where: { paymentId: { in: paymentIds } } });
+      await tx.payment.deleteMany({ where: { id: { in: paymentIds } } });
+    }
+
+    await tx.invoice.delete({ where: { id: invoice.id } });
+  });
+
+  revalidatePath("/admin/tagihan");
+  revalidatePath("/admin/pembayaran");
+  revalidatePath("/admin/verifikasi");
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/dashboard");
+  revalidatePath("/tagihan");
+  revalidatePath("/riwayat");
+
+  return {
+    ok: true,
+    message: "Tagihan berhasil dihapus permanen dari database.",
+  };
+}
+
 export async function updateUserAccount(formData: FormData) {
   await requireRole("account.manage");
 
