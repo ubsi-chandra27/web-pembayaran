@@ -1,5 +1,6 @@
 import { ImageUp, ReceiptText } from "lucide-react";
 
+import { BankAccountForm } from "@/components/bank-account-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SchoolLogo } from "@/components/school-logo";
@@ -7,9 +8,10 @@ import { SchoolIdentityForm } from "@/components/school-identity-form";
 import { prisma } from "@/lib/prisma";
 
 export default async function IdentitasSekolahPage() {
-  const setting = await prisma.schoolSetting.findFirst({
-    orderBy: { createdAt: "asc" },
-  });
+  const [setting, bankAccount] = await Promise.all([
+    prisma.schoolSetting.findFirst({ orderBy: { createdAt: "asc" } }),
+    prisma.bankAccount.findFirst({ where: { isActive: true }, orderBy: { createdAt: "asc" } }),
+  ]);
   const school = {
     foundationName: setting?.foundationName ?? "Yayasan Pendidikan Islam Azkia",
     schoolName: setting?.schoolName ?? "TK Islam Azkia",
@@ -64,6 +66,18 @@ export default async function IdentitasSekolahPage() {
         <SchoolIdentityForm school={school} />
       </section>
 
+      <BankAccountForm
+        account={
+          bankAccount
+            ? {
+                bankName: bankAccount.bankName,
+                accountNumber: bankAccount.accountNumber,
+                accountHolder: bankAccount.accountHolder,
+              }
+            : null
+        }
+      />
+
       <Card className="border-slate-200 bg-white">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -71,7 +85,7 @@ export default async function IdentitasSekolahPage() {
             Preview Pemakaian Identitas
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <div className="flex items-start gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
             <SchoolLogo className="size-16" />
             <div>
@@ -83,6 +97,15 @@ export default async function IdentitasSekolahPage() {
               </p>
             </div>
           </div>
+          {bankAccount && (
+            <div className="flex items-center gap-3 rounded-lg border border-[#b7d889] bg-[#f3f8ea] px-4 py-3">
+              <p className="text-sm text-slate-500">Pembayaran via transfer ke</p>
+              <p className="font-semibold text-slate-950">
+                {bankAccount.bankName} · {bankAccount.accountNumber}
+              </p>
+              <p className="text-sm text-slate-600">a.n. {bankAccount.accountHolder}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
