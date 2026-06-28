@@ -118,6 +118,7 @@ Menjadi sistem pembayaran sekolah yang sederhana, ramah orang tua, rapi untuk ta
 - Tata usaha dapat mengelola data orang tua/wali.
 - Tata usaha dapat menghubungkan siswa dengan orang tua.
 - Tata usaha dapat mengelola kelas.
+- Tata usaha dapat mengatur nominal SPP khusus per kelas jika berbeda dari tarif SPP default.
 - Tata usaha dapat mengelola tahun ajaran.
 - Tata usaha dapat mengelola kategori pembayaran.
 - Tata usaha dapat membuat tagihan:
@@ -126,7 +127,8 @@ Menjadi sistem pembayaran sekolah yang sederhana, ramah orang tua, rapi untuk ta
   - massal semua siswa aktif,
   - berdasarkan kategori dan periode.
 - Tata usaha dapat melihat daftar tagihan.
-- Tata usauk vdsha dapat memfilter tagihan berdasarkan:
+- Tata usaha dapat mengirim informasi tagihan ke WhatsApp wali melalui tombol kirim WhatsApp.
+- Tata usaha dapat memfilter tagihan berdasarkan:
   - siswa,
   - kelas,
   - kategori,
@@ -794,6 +796,7 @@ SchoolSetting 1--n BankAccount
 | teacherId | uuid | FK users nullable |
 | name | string | contoh TK A, TK B |
 | level | string | nullable |
+| sppAmount | decimal | nullable, override SPP khusus kelas; jika kosong memakai tarif SPP default |
 | createdAt | datetime |  |
 | updatedAt | datetime |  |
 
@@ -1281,17 +1284,23 @@ Bagian ini mencatat kondisi implementasi aplikasi web lokal saat ini agar PRD te
 ### 14.2 Auth Demo dan Role
 
 - Login sudah memakai akun demo berbasis database dan cookie session lokal.
-- Password demo disimpan sebagai hash sederhana untuk kebutuhan lokal.
+- Password baru/reset sudah memakai hash PBKDF2 dengan salt, dan login masih kompatibel dengan hash demo lama.
+- Area admin dan orang tua sudah dilindungi guard layout berbasis role.
+- Admin dan orang tua dapat mengganti password sendiri dari halaman profil/akun.
 - Role yang tersedia:
   - `SUPER_ADMIN`,
   - `TATA_USAHA`,
   - `BENDAHARA`,
   - `ORANG_TUA`.
 - Role lain seperti `KEPALA_SEKOLAH` dan `GURU` masih disiapkan di PRD untuk fase lanjutan.
+- Pada mode lokal/demo, akun admin/staff/orang tua dapat direset cepat ke password demo `demo12345` dari menu Akun.
+- Pada mode production, reset password demo dimatikan dan admin harus mengisi password baru secara manual.
 
 ### 14.3 Fitur Admin yang Sudah Berfungsi
 
 - Dashboard admin membaca agregasi dari database.
+- Aplikasi memiliki manifest PWA dasar sehingga dapat mulai dipasang ke home screen browser mobile.
+- SUPER_ADMIN memiliki menu Backup Data untuk mengunduh database SQLite lokal.
 - CRUD siswa sudah tersedia, termasuk:
   - tambah siswa,
   - ubah siswa,
@@ -1300,6 +1309,7 @@ Bagian ini mencatat kondisi implementasi aplikasi web lokal saat ini agar PRD te
 - CRUD kelas sudah tersedia, termasuk:
   - tambah kelas lewat modal,
   - edit kelas,
+  - nominal SPP khusus per kelas,
   - hapus kelas terpilih oleh checkbox.
 - Pengaturan Identitas Sekolah sudah tersimpan ke database dan dipakai di kwitansi/kartu.
 - Pengaturan Identitas Sekolah sudah memiliki form Rekening Pembayaran Resmi:
@@ -1315,11 +1325,17 @@ Bagian ini mencatat kondisi implementasi aplikasi web lokal saat ini agar PRD te
   - buat tagihan individual,
   - buat tagihan massal,
   - nomor utama invoice memakai `invoiceNumber`.
+- Menu Tagihan sudah memiliki tombol kirim WhatsApp per invoice dengan pesan otomatis berisi siswa, kelas, invoice, nominal, jatuh tempo, rekening, dan link login.
+- Menu Tagihan sudah memiliki tombol WhatsApp Massal manual untuk membuka batch pesan tagihan sesuai daftar yang sedang tampil.
+- SPP default berasal dari Pengaturan Tarif Pokok, sedangkan kelas dapat memiliki nominal SPP khusus. Contoh: TK A/TK B memakai Rp150.000, PAUD dapat diatur Rp75.000.
+- Modal Tagihan Massal menampilkan preview sasaran, jumlah siswa, dan estimasi nominal sebelum simpan.
+- SUPER_ADMIN dapat membuka menu Audit Log untuk melihat jejak aksi penting seperti reset password, verifikasi, transaksi, dan hapus data.
 
 ### 14.4 Transaksi Tunai
 
 - Transaksi tunai dilakukan dari menu Transaksi.
 - Search NIS otomatis mengisi data siswa dan kelas.
+- Nominal SPP di transaksi tunai mengikuti SPP khusus kelas jika tersedia; jika tidak tersedia memakai SPP default.
 - Tanggal bayar memakai format tampilan `dd/mm/yyyy`.
 - Nominal uang diterima diinput manual.
 - Kembalian dihitung otomatis dari uang diterima dikurangi grand total bayar.
@@ -1338,7 +1354,10 @@ Bagian ini mencatat kondisi implementasi aplikasi web lokal saat ini agar PRD te
 - Orang tua dapat login dan melihat anak yang terhubung.
 - Orang tua dapat melihat tagihan anak sendiri.
 - Orang tua dapat membuka halaman pembayaran dari tagihan.
-- Upload bukti pembayaran sudah menyimpan file ke `public/uploads/proofs`.
+- Upload bukti pembayaran lama pada data demo dapat masih mengarah ke public folder, sedangkan upload baru memakai storage adapter.
+- Upload bukti pembayaran baru default disimpan di `storage/uploads/proofs` dan dibuka melalui route terproteksi `/api/proofs/[fileName]`.
+- Adapter storage production awal tersedia melalui `STORAGE_DRIVER=cloud-http` agar file dapat dikirim ke storage eksternal.
+- Upload bukti memvalidasi MIME type, ekstensi, ukuran maksimal 2 MB, dan signature file JPG/PNG/PDF.
 - Setelah bukti dikirim:
   - payment dibuat dengan status `MENUNGGU_VERIFIKASI`,
   - invoice berubah menjadi `MENUNGGU_VERIFIKASI`,
@@ -1353,6 +1372,9 @@ Bagian ini mencatat kondisi implementasi aplikasi web lokal saat ini agar PRD te
 - Jika disetujui, invoice menjadi `LUNAS` dan receipt dibuat.
 - Jika ditolak, alasan penolakan tersimpan.
 - Laporan Pembayaran bersifat read-only untuk role operasional.
+- Laporan Pembayaran dapat diekspor ke CSV sesuai filter aktif.
+- Laporan Tunggakan tersedia untuk melihat invoice belum dibayar, ditolak, dan menunggu verifikasi per kelas.
+- Laporan Tunggakan dapat diekspor ke CSV.
 - SUPER_ADMIN memiliki aksi hapus pembayaran administratif di Laporan Pembayaran.
 - Hapus pembayaran oleh SUPER_ADMIN menghapus payment, bukti, dan receipt terkait, lalu mengembalikan status invoice sesuai payment yang tersisa.
 - Aksi hapus pembayaran oleh SUPER_ADMIN dicatat di audit log.
@@ -1361,13 +1383,26 @@ Bagian ini mencatat kondisi implementasi aplikasi web lokal saat ini agar PRD te
 
 - Akun tabungan siswa dibuat saat seed/tambah siswa.
 - Menu tabungan admin sudah mendukung setoran dan penarikan dasar.
+- Menu tabungan admin sudah mendukung koreksi masuk dan koreksi keluar dengan catatan wajib.
+- Ledger tabungan dapat diekspor ke CSV.
 - Saldo tabungan dihitung dan disimpan dari mutasi ledger.
 - Cetak buku tabungan digital dan export tabungan masih menjadi fase lanjutan.
 
 ### 14.8 Batasan Fase Saat Ini
 
-- Auth masih demo lokal, belum Auth.js/NextAuth produksi.
-- Upload file masih local filesystem, belum object storage.
+- Auth masih custom credentials sederhana, belum Auth.js/NextAuth produksi.
+- Password baru memakai PBKDF2 salted hash dan hash demo lama masih didukung untuk kompatibilitas data.
+- Mode production tersedia melalui `APP_MODE=production`.
+- Default password demo dan reset password ke demo dimatikan saat production.
+- Login memiliki rate limit dasar per IP dan kontak login.
+- Endpoint `/api/health` tersedia untuk monitoring koneksi aplikasi, database, storage driver, dan readiness konfigurasi.
+- Script `npm.cmd run prod:check` tersedia untuk validasi env production sebelum deploy.
+- Database lokal tetap SQLite, sedangkan schema PostgreSQL dan MySQL/MariaDB production tersedia di `prisma/schema.postgres.prisma` dan `prisma/schema.mysql.prisma`.
+- Seed pada mode production tidak mengisi dummy lengkap; seed hanya bootstrap Super Admin, identitas awal, tahun ajaran aktif, dan SPP dari env.
+- Upload file default masih local filesystem privat, tetapi adapter `cloud-http` sudah tersedia sebagai persiapan object storage.
 - Export PDF/XLSX penuh masih fase lanjutan.
 - Permission detail untuk `GURU` dan `KEPALA_SEKOLAH` belum lengkap.
-- Reset password admin, verifikasi email/WhatsApp, dan audit viewer khusus masih fase lanjutan.
+- Verifikasi email/WhatsApp dan export PDF/XLSX penuh masih fase lanjutan.
+- Smoke test awal tersedia lewat `npm.cmd run test:smoke`.
+- Panduan deployment awal tersedia di `docs/DEPLOYMENT.md`.
+- CI GitHub Actions belum dipush karena token GitHub perlu scope `workflow`; dapat ditambahkan setelah scope tersebut tersedia.

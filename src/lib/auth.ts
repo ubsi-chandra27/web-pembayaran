@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
+import { createHash, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -21,7 +21,30 @@ export const sessionUserCookie = "azkia_user_id";
 export const sessionRoleCookie = "azkia_role";
 
 export function hashPassword(password: string) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = pbkdf2Sync(password, salt, 120_000, 32, "sha256").toString("hex");
+
+  return `pbkdf2_sha256$120000$${salt}$${hash}`;
+}
+
+function legacyHashPassword(password: string) {
   return createHash("sha256").update(`azkia-demo:${password}`).digest("hex");
+}
+
+export function verifyPassword(password: string, storedHash: string) {
+  if (storedHash.startsWith("pbkdf2_sha256$")) {
+    const [, iterationsRaw, salt, hash] = storedHash.split("$");
+    const iterations = Number(iterationsRaw);
+
+    if (!iterations || !salt || !hash) return false;
+
+    const candidate = pbkdf2Sync(password, salt, iterations, 32, "sha256");
+    const expected = Buffer.from(hash, "hex");
+
+    return expected.length === candidate.length && timingSafeEqual(expected, candidate);
+  }
+
+  return legacyHashPassword(password) === storedHash;
 }
 
 export async function getDemoUser(role: DemoRole = "TATA_USAHA") {
@@ -61,7 +84,7 @@ export async function setSession(user: { id: string; role: string }) {
     sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 8,
+    maxAge: 60 * 60 * 12,
   };
 
   cookieStore.set(sessionUserCookie, user.id, options);

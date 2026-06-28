@@ -173,9 +173,11 @@ export function AdminShell({
                     </div>
                   </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="gap-2 text-slate-600">
-                    <User className="size-4" />
-                    Profil saya
+                  <DropdownMenuItem className="p-0 text-slate-600">
+                    <Link href="/admin/profil" className="flex w-full items-center gap-2 rounded-md px-1.5 py-1">
+                      <User className="size-4" />
+                      Profil saya
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   {/* Logout via form action */}

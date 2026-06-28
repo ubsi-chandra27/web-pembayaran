@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Download, Search } from "lucide-react";
+import { Download, MessageCircle, Search } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,14 @@ import {
 import {
   CancelInvoiceButton,
   CreateInvoiceDialog,
+  BulkWhatsAppButton,
   EditInvoiceDialog,
   InvoiceFilterButton,
 } from "@/components/invoice-admin-actions";
 import { getCurrentUser } from "@/lib/auth";
-import { formatCurrency, toInputDate } from "@/lib/format";
+import { formatCurrency, formatDate, toInputDate } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
+import { whatsappLink } from "@/lib/whatsapp";
 
 function tone(status: string) {
   if (status === "LUNAS") return "bg-[#e7f3d7] text-[#078435]";
@@ -39,13 +41,69 @@ function statusLabel(status: string) {
   return "Dibatalkan";
 }
 
+function periodLabel(month: number | null, year: number | null) {
+  if (!month || !year) return "-";
+
+  return new Intl.DateTimeFormat("id-ID", {
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Jakarta",
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
+function buildInvoiceWhatsAppMessage({
+  schoolName,
+  studentName,
+  className,
+  invoiceNumber,
+  title,
+  period,
+  amount,
+  dueDate,
+  bankLine,
+  loginUrl,
+}: {
+  schoolName: string;
+  studentName: string;
+  className: string;
+  invoiceNumber: string;
+  title: string;
+  period: string;
+  amount: string;
+  dueDate: string;
+  bankLine: string;
+  loginUrl: string;
+}) {
+  return [
+    `Assalamualaikum Bapak/Ibu Wali ${studentName}.`,
+    "",
+    `Berikut informasi tagihan ${schoolName}:`,
+    "",
+    `No Invoice: ${invoiceNumber}`,
+    `Siswa: ${studentName}`,
+    `Kelas: ${className}`,
+    `Tagihan: ${title}`,
+    `Periode: ${period}`,
+    `Nominal: ${amount}`,
+    `Jatuh tempo: ${dueDate}`,
+    bankLine,
+    "",
+    `Silakan login ke portal untuk melihat detail dan mengunggah bukti pembayaran: ${loginUrl}`,
+    "",
+    `Terima kasih.`,
+    schoolName,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export default async function AdminTagihanPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; status?: string; tariffId?: string }>;
 }) {
   const { q = "", status = "", tariffId = "" } = await searchParams;
-  const [user, students, tariffs, classes, invoices] = await Promise.all([
+  const [user, students, tariffs, classes, invoices, schoolSetting, bankAccount] = await Promise.all([
     getCurrentUser(),
     prisma.student.findMany({
       where: { status: "ACTIVE" },
@@ -57,6 +115,7 @@ export default async function AdminTagihanPage({
       orderBy: [{ isLocked: "desc" }, { name: "asc" }],
     }),
     prisma.schoolClass.findMany({
+      include: { _count: { select: { students: true } } },
       orderBy: { name: "asc" },
     }),
     prisma.invoice.findMany({
@@ -75,12 +134,22 @@ export default async function AdminTagihanPage({
           : {}),
       },
       include: {
-        student: { include: { class: true } },
+        student: {
+          include: {
+            class: true,
+            guardians: {
+              include: { guardian: { include: { user: true } } },
+              orderBy: { isPrimary: "desc" },
+            },
+          },
+        },
         tariff: true,
       },
       orderBy: { createdAt: "desc" },
       take: 75,
     }),
+    prisma.schoolSetting.findFirst({ orderBy: { createdAt: "asc" } }),
+    prisma.bankAccount.findFirst({ where: { isActive: true }, orderBy: { createdAt: "asc" } }),
   ]);
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const tariffOptions = tariffs.map((tariff) => ({
@@ -94,6 +163,37 @@ export default async function AdminTagihanPage({
   if (q) exportParams.set("q", q);
   if (status) exportParams.set("status", status);
   if (tariffId) exportParams.set("tariffId", tariffId);
+  const schoolName = schoolSetting?.schoolName ?? "TK Islam Azkia";
+  const loginUrl = process.env.NEXT_PUBLIC_APP_URL
+    ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/login`
+    : "http://localhost:3002/login";
+  const bankLine = bankAccount
+    ? `Rekening: ${bankAccount.bankName} ${bankAccount.accountNumber} a.n. ${bankAccount.accountHolder}`
+    : "";
+  const invoiceWhatsAppLinks = invoices
+    .filter((invoice) => ["BELUM_DIBAYAR", "DITOLAK"].includes(invoice.status))
+    .map((invoice) => {
+      const guardian = invoice.student.guardians[0]?.guardian;
+      const guardianPhone = guardian?.phone ?? guardian?.user?.phone ?? "";
+      const period = periodLabel(invoice.periodMonth, invoice.periodYear);
+
+      return whatsappLink(
+        guardianPhone,
+        buildInvoiceWhatsAppMessage({
+          schoolName,
+          studentName: invoice.student.fullName,
+          className: invoice.student.class.name,
+          invoiceNumber: invoice.invoiceNumber,
+          title: invoice.title,
+          period,
+          amount: formatCurrency(invoice.totalAmount),
+          dueDate: invoice.dueDate ? formatDate(invoice.dueDate) : "-",
+          bankLine,
+          loginUrl,
+        })
+      );
+    })
+    .filter(Boolean);
 
   return (
     <div className="space-y-6">
@@ -114,12 +214,15 @@ export default async function AdminTagihanPage({
             id: student.id,
             nis: student.nis,
             name: student.fullName,
+            classId: student.classId,
             className: student.class.name,
           }))}
           tariffs={tariffOptions}
           classes={classes.map((kelas) => ({
             id: kelas.id,
             name: kelas.name,
+            sppAmount: kelas.sppAmount?.toNumber() ?? null,
+            studentCount: kelas._count.students,
           }))}
         />
       </div>
@@ -139,6 +242,7 @@ export default async function AdminTagihanPage({
               {tariffId && <input type="hidden" name="tariffId" value={tariffId} />}
             </form>
             <div className="flex flex-wrap gap-2">
+              <BulkWhatsAppButton links={invoiceWhatsAppLinks} />
               <InvoiceFilterButton q={q} status={status} tariffId={tariffId} tariffs={tariffOptions} />
               <Button asChild variant="outline" className="h-10 bg-white">
                 <Link href={`/admin/tagihan/export${exportParams.size ? `?${exportParams}` : ""}`}>
@@ -167,6 +271,24 @@ export default async function AdminTagihanPage({
               <TableBody>
                 {invoices.map((invoice) => {
                   const actionDisabled = invoice.status === "LUNAS" || invoice.status === "DIBATALKAN";
+                  const guardian = invoice.student.guardians[0]?.guardian;
+                  const guardianPhone = guardian?.phone ?? guardian?.user?.phone ?? "";
+                  const period = periodLabel(invoice.periodMonth, invoice.periodYear);
+                  const whatsAppHref = whatsappLink(
+                    guardianPhone,
+                    buildInvoiceWhatsAppMessage({
+                      schoolName,
+                      studentName: invoice.student.fullName,
+                      className: invoice.student.class.name,
+                      invoiceNumber: invoice.invoiceNumber,
+                      title: invoice.title,
+                      period,
+                      amount: formatCurrency(invoice.totalAmount),
+                      dueDate: invoice.dueDate ? formatDate(invoice.dueDate) : "-",
+                      bankLine,
+                      loginUrl,
+                    })
+                  );
 
                   return (
                     <TableRow key={invoice.id}>
@@ -184,7 +306,7 @@ export default async function AdminTagihanPage({
                       </TableCell>
                       <TableCell>
                         {invoice.periodMonth && invoice.periodYear
-                          ? `${invoice.periodMonth}/${invoice.periodYear}`
+                          ? period
                           : "-"}
                       </TableCell>
                       <TableCell className="font-semibold">
@@ -195,6 +317,25 @@ export default async function AdminTagihanPage({
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-1">
+                          <Button
+                            asChild={Boolean(whatsAppHref)}
+                            variant="ghost"
+                            size="icon"
+                            disabled={!whatsAppHref}
+                            aria-label={`Kirim WhatsApp ${invoice.invoiceNumber}`}
+                            title={whatsAppHref ? "Kirim tagihan via WhatsApp" : "Nomor WhatsApp wali belum tersedia"}
+                            className="text-[#078435] hover:bg-[#e7f3d7]"
+                          >
+                            {whatsAppHref ? (
+                              <a href={whatsAppHref} target="_blank" rel="noreferrer">
+                                <MessageCircle className="size-4" />
+                              </a>
+                            ) : (
+                              <span>
+                                <MessageCircle className="size-4" />
+                              </span>
+                            )}
+                          </Button>
                           <EditInvoiceDialog
                             invoice={{
                               id: invoice.id,

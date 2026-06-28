@@ -1,5 +1,9 @@
+import Link from "next/link";
+import { Download } from "lucide-react";
+
 import { LedgerTable, type LedgerRow } from "./ledger-table";
 import { TabunganForm } from "./tabungan-form";
+import { Button } from "@/components/ui/button";
 import { PrintButton } from "@/components/print-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
@@ -60,7 +64,15 @@ export default async function AdminTabunganPage() {
             Setoran, penarikan, dan ledger saldo
           </h1>
         </div>
-        <PrintButton label="Cetak Buku Tabungan" />
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" className="bg-white">
+            <Link href="/admin/tabungan/export">
+              <Download className="size-4" />
+              Export CSV
+            </Link>
+          </Button>
+          <PrintButton label="Cetak Buku Tabungan" />
+        </div>
       </div>
 
       {/* Stats */}

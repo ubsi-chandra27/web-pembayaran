@@ -53,6 +53,10 @@ export default async function AdminTransaksiPage({
     prisma.academicYear.findFirst({ where: { isActive: true } }),
   ]);
   const sppTariff = tariffs.find((tariff) => tariff.name.toUpperCase() === "SPP");
+  const effectiveSppAmount =
+    student && sppTariff
+      ? student.class.sppAmount?.toNumber() ?? sppTariff.amount.toNumber()
+      : sppTariff?.amount.toNumber() ?? 0;
   const paidTotal =
     student?.invoices
       .filter((invoice) => invoice.status === "LUNAS")
@@ -72,7 +76,7 @@ export default async function AdminTransaksiPage({
     (sum, invoice) => sum + (invoice?.totalAmount.toNumber() ?? 0),
     0
   );
-  const annualSppTotal = student && sppTariff ? sppTariff.amount.toNumber() * 12 : 0;
+  const annualSppTotal = student && sppTariff ? effectiveSppAmount * 12 : 0;
   const outstandingTotal = Math.max(annualSppTotal - paidSppTotal, 0);
   const months = sppMonthOrder.map((item) => {
     const monthInvoices = (student?.invoices ?? []).filter(
@@ -109,10 +113,13 @@ export default async function AdminTransaksiPage({
         tariffs={tariffs.map((tariff) => ({
           id: tariff.id,
           name: tariff.name,
-          amount: tariff.amount.toNumber(),
-          amountLabel: formatCurrency(tariff.amount),
+          amount: tariff.name.toUpperCase() === "SPP" ? effectiveSppAmount : tariff.amount.toNumber(),
+          amountLabel:
+            tariff.name.toUpperCase() === "SPP"
+              ? formatCurrency(effectiveSppAmount)
+              : formatCurrency(tariff.amount),
           fixed: tariff.isMandatory,
-          defaultPaid: tariff.name.toUpperCase() === "SPP" ? formatNumber(tariff.amount) : "",
+          defaultPaid: tariff.name.toUpperCase() === "SPP" ? formatNumber(effectiveSppAmount) : "",
         }))}
         months={months}
         paidTotal={paidTotal}

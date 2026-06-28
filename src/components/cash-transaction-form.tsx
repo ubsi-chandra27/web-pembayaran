@@ -298,7 +298,7 @@ export function CashTransactionForm({
                   <p className="font-medium text-slate-950">{row.name}</p>
                   {row.fixed && (
                     <p className="text-xs text-slate-500">
-                      Wajib dari pengaturan tarif pokok
+                      Wajib dari pengaturan tarif pokok/kelas
                     </p>
                   )}
                 </div>

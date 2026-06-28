@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDownCircle, ArrowUpCircle, PlusCircle } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, PlusCircle, RefreshCcw } from "lucide-react";
 
 import { createSavingsTransaction } from "../actions";
 import { Button } from "@/components/ui/button";
@@ -31,10 +31,19 @@ export function TabunganForm({ students }: { students: StudentOption[] }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [selectedId, setSelectedId] = useState("");
-  const [mode, setMode] = useState<"SETORAN" | "PENARIKAN">("SETORAN");
+  const [mode, setMode] = useState<"SETORAN" | "PENARIKAN" | "KOREKSI_MASUK" | "KOREKSI_KELUAR">("SETORAN");
 
   const selected = students.find((s) => s.id === selectedId);
-  const isSetoran = mode === "SETORAN";
+  const isSetoran = mode === "SETORAN" || mode === "KOREKSI_MASUK";
+  const requiresNotes = mode !== "SETORAN";
+  const modeLabel =
+    mode === "SETORAN"
+      ? "Setoran"
+      : mode === "PENARIKAN"
+        ? "Penarikan"
+        : mode === "KOREKSI_MASUK"
+          ? "Koreksi Masuk"
+          : "Koreksi Keluar";
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,7 +55,7 @@ export function TabunganForm({ students }: { students: StudentOption[] }) {
         toast(
           "success",
           "Transaksi tersimpan",
-          `${isSetoran ? "Setoran" : "Penarikan"} berhasil dicatat.`,
+          `${modeLabel} berhasil dicatat.`,
         );
         setSelectedId("");
         formRef.current?.reset();
@@ -121,31 +130,34 @@ export function TabunganForm({ students }: { students: StudentOption[] }) {
           )}
 
           {/* Mode toggle */}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setMode("SETORAN")}
-              className={`flex items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-colors ${
-                isSetoran
-                  ? "border-[#10b447] bg-[#10b447] text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              <ArrowDownCircle className="size-4" />
-              Setoran
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("PENARIKAN")}
-              className={`flex items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-colors ${
-                !isSetoran
-                  ? "border-rose-600 bg-rose-600 text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              <ArrowUpCircle className="size-4" />
-              Penarikan
-            </button>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            {[
+              { value: "SETORAN", label: "Setoran", icon: ArrowDownCircle, tone: "green" },
+              { value: "PENARIKAN", label: "Penarikan", icon: ArrowUpCircle, tone: "rose" },
+              { value: "KOREKSI_MASUK", label: "Koreksi Masuk", icon: RefreshCcw, tone: "green" },
+              { value: "KOREKSI_KELUAR", label: "Koreksi Keluar", icon: RefreshCcw, tone: "rose" },
+            ].map((item) => {
+              const active = mode === item.value;
+              const Icon = item.icon;
+
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setMode(item.value as typeof mode)}
+                  className={`flex items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-colors ${
+                    active
+                      ? item.tone === "green"
+                        ? "border-[#10b447] bg-[#10b447] text-white"
+                        : "border-rose-600 bg-rose-600 text-white"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <Icon className="size-4" />
+                  {item.label}
+                </button>
+              );
+            })}
           </div>
 
           <input type="hidden" name="type" value={mode} />
@@ -166,7 +178,7 @@ export function TabunganForm({ students }: { students: StudentOption[] }) {
           <div className="space-y-2">
             <Label>
               Catatan{" "}
-              {!isSetoran ? (
+              {requiresNotes ? (
                 <span className="text-rose-600">*</span>
               ) : (
                 <span className="text-xs font-normal text-slate-400">(opsional)</span>
@@ -176,11 +188,11 @@ export function TabunganForm({ students }: { students: StudentOption[] }) {
               name="notes"
               placeholder={
                 isSetoran
-                  ? "Catatan setoran (opsional)..."
-                  : "Alasan penarikan (wajib)..."
+                  ? "Catatan setoran/koreksi masuk..."
+                  : "Alasan penarikan/koreksi keluar..."
               }
               className={`min-h-20 bg-white ${isSetoran ? "border-[#b7d889]" : "border-rose-200"}`}
-              required={!isSetoran}
+              required={requiresNotes}
             />
           </div>
 
@@ -195,8 +207,8 @@ export function TabunganForm({ students }: { students: StudentOption[] }) {
             {isPending
               ? "Menyimpan..."
               : isSetoran
-                ? "Simpan Setoran"
-                : "Proses Penarikan"}
+                ? `Simpan ${modeLabel}`
+                : `Proses ${modeLabel}`}
           </Button>
         </form>
       </CardContent>

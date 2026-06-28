@@ -1,0 +1,271 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String               @id @default(uuid())
+  role                String
+  name                String
+  email               String?              @unique
+  phone               String?              @unique
+  passwordHash        String
+  avatarUrl           String?
+  status              String               @default("ACTIVE")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  guardians           Guardian[]
+  teachingClasses     SchoolClass[]
+  createdInvoices     Invoice[]            @relation("InvoiceCreatedBy")
+  createdPayments     Payment[]            @relation("PaymentCreatedBy")
+  verifiedPayments    Payment[]            @relation("PaymentVerifiedBy")
+  uploadedProofs      PaymentProof[]
+  issuedReceipts      Receipt[]
+  savingsTransactions SavingsTransaction[]
+  auditLogs           AuditLog[]
+}
+
+model AcademicYear {
+  id        String        @id @default(uuid())
+  name      String        @unique
+  startsAt  DateTime
+  endsAt    DateTime
+  isActive  Boolean       @default(false)
+  classes   SchoolClass[]
+  invoices  Invoice[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model SchoolClass {
+  id             String       @id @default(uuid())
+  academicYearId String
+  teacherId      String?
+  name           String
+  level          String?
+  sppAmount      Decimal?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  teacher        User?        @relation(fields: [teacherId], references: [id])
+  students       Student[]
+
+  @@unique([academicYearId, name])
+  @@map("classes")
+}
+
+model Student {
+  id               String            @id @default(uuid())
+  classId          String
+  nis              String            @unique
+  fullName         String
+  nickname         String?
+  gender           String
+  birthDate        DateTime?
+  address          String?
+  photoUrl         String?
+  status           String            @default("ACTIVE")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  class            SchoolClass       @relation(fields: [classId], references: [id])
+  guardians        StudentGuardian[]
+  invoices         Invoice[]
+  savingsAccount   SavingsAccount?
+}
+
+model Guardian {
+  id        String            @id @default(uuid())
+  userId    String?
+  name      String
+  relation  String
+  phone     String?
+  email     String?
+  address   String?
+  user      User?             @relation(fields: [userId], references: [id])
+  students  StudentGuardian[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model StudentGuardian {
+  id         String   @id @default(uuid())
+  studentId  String
+  guardianId String
+  isPrimary  Boolean  @default(false)
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, guardianId])
+  @@map("student_guardians")
+}
+
+model BaseTariff {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  amount      Decimal
+  description String?
+  isMandatory Boolean   @default(false)
+  isLocked    Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  invoices    Invoice[]
+}
+
+model Invoice {
+  id             String     @id @default(uuid())
+  studentId      String
+  tariffId       String
+  academicYearId String
+  invoiceNumber  String     @unique
+  title          String
+  periodMonth    Int?
+  periodYear     Int?
+  amount         Decimal
+  discountAmount Decimal    @default(0)
+  fineAmount     Decimal    @default(0)
+  totalAmount    Decimal
+  dueDate        DateTime?
+  status         String     @default("BELUM_DIBAYAR")
+  notes          String?
+  createdById    String
+  paidAt         DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  student        Student    @relation(fields: [studentId], references: [id])
+  tariff         BaseTariff @relation(fields: [tariffId], references: [id])
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  createdBy      User       @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  payments       Payment[]
+
+  @@unique([studentId, tariffId, periodMonth, periodYear, academicYearId])
+}
+
+model Payment {
+  id              String         @id @default(uuid())
+  invoiceId       String
+  paymentNumber   String         @unique
+  amount          Decimal
+  method          String
+  status          String         @default("MENUNGGU_VERIFIKASI")
+  paidAt          DateTime
+  verifiedAt      DateTime?
+  verifiedById    String?
+  rejectionReason String?
+  createdById     String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  invoice         Invoice        @relation(fields: [invoiceId], references: [id])
+  createdBy       User           @relation("PaymentCreatedBy", fields: [createdById], references: [id])
+  verifiedBy      User?          @relation("PaymentVerifiedBy", fields: [verifiedById], references: [id])
+  proofs          PaymentProof[]
+  receipt         Receipt?
+}
+
+model PaymentProof {
+  id           String   @id @default(uuid())
+  paymentId    String
+  fileUrl      String
+  fileName     String
+  fileMime     String
+  fileSize     Int
+  uploadedById String
+  createdAt    DateTime @default(now())
+  payment      Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+}
+
+model Receipt {
+  id            String   @id @default(uuid())
+  paymentId     String   @unique
+  receiptNumber String   @unique
+  issuedAt      DateTime @default(now())
+  issuedById    String
+  pdfUrl        String?
+  payment       Payment  @relation(fields: [paymentId], references: [id])
+  issuedBy      User     @relation(fields: [issuedById], references: [id])
+}
+
+model SavingsAccount {
+  id           String               @id @default(uuid())
+  studentId    String               @unique
+  accountNumber String              @unique
+  balance      Decimal              @default(0)
+  status       String               @default("ACTIVE")
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  student      Student              @relation(fields: [studentId], references: [id])
+  transactions SavingsTransaction[]
+}
+
+model SavingsTransaction {
+  id                String         @id @default(uuid())
+  accountId         String
+  transactionNumber String         @unique
+  type              String
+  amount            Decimal
+  balanceBefore     Decimal
+  balanceAfter      Decimal
+  notes             String?
+  createdById       String
+  createdAt         DateTime       @default(now())
+  account           SavingsAccount @relation(fields: [accountId], references: [id])
+  createdBy         User           @relation(fields: [createdById], references: [id])
+}
+
+model SchoolSetting {
+  id                String   @id @default(uuid())
+  foundationName    String
+  schoolName        String
+  address           String
+  email             String
+  phone             String
+  logoUrl           String
+  activeYearName    String
+  receiptCity       String
+  treasurerName     String
+  receiptNotes      String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model BankAccount {
+  id            String   @id @default(uuid())
+  bankName      String
+  accountNumber String
+  accountHolder String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model HeroSlide {
+  id        String   @id @default(uuid())
+  imageUrl  String
+  alt       String
+  title     String
+  caption   String
+  position  String   @default("object-center")
+  sortOrder Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String
+  before    Json?
+  after     Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+}

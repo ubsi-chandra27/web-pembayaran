@@ -31,11 +31,15 @@ export type LedgerRow = {
 const PER_PAGE_OPTIONS = [5, 10, 20, 30] as const;
 
 function typeLabel(type: string) {
-  return type === "SETORAN" ? "Setoran" : "Penarikan";
+  if (type === "SETORAN") return "Setoran";
+  if (type === "PENARIKAN") return "Penarikan";
+  if (type === "KOREKSI_MASUK") return "Koreksi Masuk";
+  if (type === "KOREKSI_KELUAR") return "Koreksi Keluar";
+  return type;
 }
 
 function isIncoming(type: string) {
-  return type === "SETORAN";
+  return type === "SETORAN" || type === "KOREKSI_MASUK";
 }
 
 export function LedgerTable({ transactions }: { transactions: LedgerRow[] }) {

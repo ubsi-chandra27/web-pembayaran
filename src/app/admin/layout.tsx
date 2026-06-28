@@ -1,7 +1,8 @@
 import React from "react";
+import { redirect } from "next/navigation";
 
 import { AdminShell } from "@/components/admin-shell";
-import { getCurrentUser } from "@/lib/auth";
+import { requireCurrentUser } from "@/lib/auth";
 
 function getInitials(name: string) {
   return name
@@ -20,7 +21,11 @@ function getRoleLabel(role: string) {
 }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const user = await getCurrentUser();
+  const user = await requireCurrentUser();
+
+  if (user.role === "ORANG_TUA") {
+    redirect("/dashboard");
+  }
 
   const userProps = {
     name: user?.name ?? "Pengguna",

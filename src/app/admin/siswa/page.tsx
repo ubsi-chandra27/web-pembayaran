@@ -20,6 +20,7 @@ import {
   SyncGuardianDialog,
 } from "@/components/student-admin-actions";
 import { prisma } from "@/lib/prisma";
+import { allowDemoDefaults } from "@/lib/runtime-config";
 
 function statusLabel(status: string) {
   if (status === "ACTIVE") return "Aktif";
@@ -38,6 +39,7 @@ export default async function SiswaPage({
   searchParams: Promise<{ q?: string; classId?: string; status?: string }>;
 }) {
   const { q = "", classId = "", status = "" } = await searchParams;
+  const demoDefaultsAllowed = allowDemoDefaults();
   const [classes, students] = await Promise.all([
     prisma.schoolClass.findMany({
       include: { academicYear: true },
@@ -80,7 +82,10 @@ export default async function SiswaPage({
             Kelola siswa, kelas, status, dan sinkron akun orang tua.
           </p>
         </div>
-        <CreateStudentDialog classes={classOptions} />
+        <CreateStudentDialog
+          classes={classOptions}
+          demoDefaultsAllowed={demoDefaultsAllowed}
+        />
       </div>
 
       <Card className="border-slate-200 bg-white">
@@ -174,7 +179,11 @@ export default async function SiswaPage({
                               classId: student.classId,
                             }}
                           />
-                          <SyncGuardianDialog studentId={student.id} studentName={student.fullName} />
+                          <SyncGuardianDialog
+                            studentId={student.id}
+                            studentName={student.fullName}
+                            demoDefaultsAllowed={demoDefaultsAllowed}
+                          />
                           <DeactivateStudentButton studentId={student.id} studentName={student.fullName} />
                           <DeleteStudentButton studentId={student.id} studentName={student.fullName} />
                         </div>

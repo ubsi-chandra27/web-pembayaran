@@ -1,6 +1,10 @@
 import { Search, Users } from "lucide-react";
 
-import { CreateAccountDialog, EditAccountDialog } from "@/components/account-admin-actions";
+import {
+  CreateAccountDialog,
+  EditAccountDialog,
+  ResetAccountPasswordButton,
+} from "@/components/account-admin-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -15,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { avatarClass, roleBadgeClass, roleLabel } from "@/lib/account-format";
 import { prisma } from "@/lib/prisma";
+import { allowDemoDefaults } from "@/lib/runtime-config";
 
 const roles = [
   "SUPER_ADMIN",
@@ -31,6 +36,7 @@ export default async function AkunPage({
   searchParams: Promise<{ q?: string; role?: string }>;
 }) {
   const { q = "", role = "" } = await searchParams;
+  const demoResetAllowed = allowDemoDefaults();
   const users = await prisma.user.findMany({
     where: {
       ...(role ? { role } : {}),
@@ -63,7 +69,7 @@ export default async function AkunPage({
             Kelola role, status, dan reset password — {totalActive} akun aktif.
           </p>
         </div>
-        <CreateAccountDialog />
+        <CreateAccountDialog demoDefaultsAllowed={demoResetAllowed} />
       </div>
 
       {/* Table card */}
@@ -197,14 +203,23 @@ export default async function AkunPage({
 
                     {/* Aksi */}
                     <TableCell className="pr-6 text-right">
-                      <EditAccountDialog
-                        user={{
-                          id: user.id,
-                          name: user.name,
-                          role: user.role,
-                          status: user.status,
-                        }}
-                      />
+                      <div className="flex justify-end gap-1">
+                        <ResetAccountPasswordButton
+                          user={{
+                            id: user.id,
+                            name: user.name,
+                          }}
+                          demoResetAllowed={demoResetAllowed}
+                        />
+                        <EditAccountDialog
+                          user={{
+                            id: user.id,
+                            name: user.name,
+                            role: user.role,
+                            status: user.status,
+                          }}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

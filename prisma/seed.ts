@@ -1,12 +1,27 @@
 import { PrismaClient, Prisma } from "@prisma/client";
-import { createHash } from "node:crypto";
+import { pbkdf2Sync, randomBytes } from "node:crypto";
 
 const prisma = new PrismaClient();
 
 const amount = (value: number) => new Prisma.Decimal(value);
 
 function passwordHash(password: string) {
-  return createHash("sha256").update(`azkia-demo:${password}`).digest("hex");
+  const salt = randomBytes(16).toString("hex");
+  const hash = pbkdf2Sync(password, salt, 120_000, 32, "sha256").toString("hex");
+
+  return `pbkdf2_sha256$120000$${salt}$${hash}`;
+}
+
+function isSqliteDatabase() {
+  return (process.env.DATABASE_URL || "").startsWith("file:");
+}
+
+function isProductionSeed() {
+  return process.env.NODE_ENV === "production" || process.env.APP_MODE === "production";
+}
+
+function env(name: string, fallback = "") {
+  return process.env[name]?.trim() || fallback;
 }
 
 async function ensureSqliteSchema() {
@@ -38,6 +53,7 @@ async function ensureSqliteSchema() {
       "teacherId" TEXT,
       "name" TEXT NOT NULL,
       "level" TEXT,
+      "sppAmount" DECIMAL,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
@@ -226,10 +242,112 @@ async function ensureSqliteSchema() {
   for (const statement of statements) {
     await prisma.$executeRawUnsafe(statement);
   }
+
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "classes" ADD COLUMN "sppAmount" DECIMAL`);
+  } catch {
+    // Column already exists on databases created before this seed update.
+  }
+}
+
+async function seedProductionBootstrap() {
+  const email = env("SUPER_ADMIN_EMAIL");
+  const password = env("SUPER_ADMIN_PASSWORD");
+  const name = env("SUPER_ADMIN_NAME", "Super Admin");
+  const phone = env("SUPER_ADMIN_PHONE");
+  const schoolName = env("SCHOOL_NAME", "TK Islam Azkia");
+  const foundationName = env("FOUNDATION_NAME", "Yayasan Azkia");
+  const activeYearName = env("ACTIVE_YEAR_NAME", "2026/2027");
+  const sppAmount = Number(env("SPP_AMOUNT", "150000").replace(/[^\d]/g, ""));
+
+  if (!email || !password) {
+    throw new Error(
+      "Production seed membutuhkan SUPER_ADMIN_EMAIL dan SUPER_ADMIN_PASSWORD."
+    );
+  }
+
+  await prisma.user.upsert({
+    where: { email },
+    update: {
+      role: "SUPER_ADMIN",
+      name,
+      phone: phone || null,
+      passwordHash: passwordHash(password),
+      status: "ACTIVE",
+    },
+    create: {
+      role: "SUPER_ADMIN",
+      name,
+      email,
+      phone: phone || null,
+      passwordHash: passwordHash(password),
+      status: "ACTIVE",
+    },
+  });
+
+  const setting = await prisma.schoolSetting.findFirst();
+
+  if (!setting) {
+    await prisma.schoolSetting.create({
+      data: {
+        foundationName,
+        schoolName,
+        address: env("SCHOOL_ADDRESS", "Alamat sekolah belum diisi"),
+        email: env("SCHOOL_EMAIL", email),
+        phone: env("SCHOOL_PHONE", phone || "-"),
+        logoUrl: env("SCHOOL_LOGO_URL", "/logo-tk-azkia-transparent.png"),
+        activeYearName,
+        receiptCity: env("RECEIPT_CITY", "Bekasi"),
+        treasurerName: env("TREASURER_NAME", "Bendahara"),
+        receiptNotes: env("RECEIPT_NOTES", "Terima kasih atas pembayaran Bapak/Ibu."),
+      },
+    });
+  }
+
+  const activeYear = await prisma.academicYear.findFirst({ where: { isActive: true } });
+
+  if (!activeYear) {
+    await prisma.academicYear.create({
+      data: {
+        name: activeYearName,
+        startsAt: new Date("2026-07-01T00:00:00.000Z"),
+        endsAt: new Date("2027-06-30T00:00:00.000Z"),
+        isActive: true,
+      },
+    });
+  }
+
+  await prisma.baseTariff.upsert({
+    where: { name: "SPP" },
+    update: {
+      amount: amount(sppAmount || 150000),
+      isMandatory: true,
+      isLocked: true,
+      isActive: true,
+    },
+    create: {
+      name: "SPP",
+      amount: amount(sppAmount || 150000),
+      description: "Tarif pokok wajib bulanan siswa.",
+      isMandatory: true,
+      isLocked: true,
+      isActive: true,
+    },
+  });
+
+  console.log("Production bootstrap selesai.");
+  console.log(`Super Admin: ${email}`);
 }
 
 async function main() {
-  await ensureSqliteSchema();
+  if (isProductionSeed() && process.env.SEED_DEMO_DATA !== "true") {
+    await seedProductionBootstrap();
+    return;
+  }
+
+  if (isSqliteDatabase()) {
+    await ensureSqliteSchema();
+  }
 
   await prisma.auditLog.deleteMany();
   await prisma.receipt.deleteMany();
@@ -300,12 +418,19 @@ async function main() {
   });
 
   const classes = await Promise.all(
-    ["TK A Ceria", "TK A Mandiri", "TK B Ceria", "TK B Mandiri"].map((name) =>
+    [
+      { name: "TK A Ceria", level: "TK A", sppAmount: 150000 },
+      { name: "TK A Mandiri", level: "TK A", sppAmount: 150000 },
+      { name: "TK B Ceria", level: "TK B", sppAmount: 150000 },
+      { name: "TK B Mandiri", level: "TK B", sppAmount: 150000 },
+      { name: "PAUD Bintang", level: "PAUD", sppAmount: 75000 },
+    ].map((kelas) =>
       prisma.schoolClass.create({
         data: {
           academicYearId: activeYear.id,
-          name,
-          level: name.startsWith("TK A") ? "TK A" : "TK B",
+          name: kelas.name,
+          level: kelas.level,
+          sppAmount: amount(kelas.sppAmount),
         },
       })
     )
@@ -315,7 +440,7 @@ async function main() {
     prisma.baseTariff.create({
       data: {
         name: "SPP",
-        amount: amount(250000),
+        amount: amount(150000),
         description: "Tarif pokok wajib bulanan siswa.",
         isMandatory: true,
         isLocked: true,
@@ -378,7 +503,7 @@ async function main() {
     }),
     prisma.student.create({
       data: {
-        classId: classes[3].id,
+        classId: classes[4].id,
         nis: "A126",
         fullName: "Naila Zahra",
         nickname: "Naila",

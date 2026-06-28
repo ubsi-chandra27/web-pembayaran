@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginLocal } from "@/app/(public)/login/actions";
+import { allowDemoDefaults } from "@/lib/runtime-config";
 
 export default async function LoginPage({
   searchParams,
@@ -21,6 +22,7 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  const demoDefaultsAllowed = allowDemoDefaults();
 
   return (
     <div className="min-h-[calc(100vh-8rem)] bg-[#f7fbef] px-4 py-10 sm:px-6">
@@ -62,12 +64,14 @@ export default async function LoginPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Alert className="border-sky-200 bg-sky-50 text-sky-900">
-              <Smartphone className="size-4" />
-              <AlertDescription>
-                Akun lokal: budi@example.com atau tu@tkislamazkia.sch.id, sandi demo12345.
-              </AlertDescription>
-            </Alert>
+            {demoDefaultsAllowed && (
+              <Alert className="border-sky-200 bg-sky-50 text-sky-900">
+                <Smartphone className="size-4" />
+                <AlertDescription>
+                  Akun lokal: budi@example.com atau tu@tkislamazkia.sch.id, sandi demo12345.
+                </AlertDescription>
+              </Alert>
+            )}
             {error && (
               <Alert className="border-rose-200 bg-rose-50 text-rose-800">
                 <AlertDescription>
@@ -75,6 +79,8 @@ export default async function LoginPage({
                     ? "Akun ditemukan, tetapi rolenya tidak sesuai tombol masuk yang dipilih."
                     : error === "required"
                       ? "Email/WhatsApp dan kata sandi wajib diisi."
+                      : error === "rate_limit"
+                        ? "Percobaan login terlalu banyak. Tunggu beberapa menit lalu coba lagi."
                       : "Email/WhatsApp atau kata sandi tidak cocok dengan data lokal."}
                 </AlertDescription>
               </Alert>
@@ -95,7 +101,7 @@ export default async function LoginPage({
                   id="password"
                   name="password"
                   type="password"
-                  placeholder="demo12345"
+                  placeholder={demoDefaultsAllowed ? "demo12345" : "Masukkan kata sandi"}
                   className="h-10 bg-white"
                 />
               </div>

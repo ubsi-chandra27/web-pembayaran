@@ -1,7 +1,6 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { Prisma } from "@prisma/client";
@@ -9,6 +8,7 @@ import { revalidatePath } from "next/cache";
 
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { savePaymentProofFile } from "@/lib/storage";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -78,24 +78,50 @@ export async function submitPaymentProof(formData: FormData) {
     throw new Error("Ukuran bukti maksimal 2 MB.");
   }
 
+  const allowedExtensionsByMime: Record<string, string[]> = {
+    "image/jpeg": [".jpg", ".jpeg"],
+    "image/png": [".png"],
+    "application/pdf": [".pdf"],
+  };
+  const ext = path.extname(proof.name).toLowerCase();
+
+  if (!allowedExtensionsByMime[proof.type]?.includes(ext)) {
+    throw new Error("Ekstensi file tidak sesuai dengan tipe bukti pembayaran.");
+  }
+
+  const fileBuffer = Buffer.from(await proof.arrayBuffer());
+  const isJpeg = fileBuffer[0] === 0xff && fileBuffer[1] === 0xd8 && fileBuffer[2] === 0xff;
+  const isPng =
+    fileBuffer[0] === 0x89 &&
+    fileBuffer[1] === 0x50 &&
+    fileBuffer[2] === 0x4e &&
+    fileBuffer[3] === 0x47;
+  const isPdf = fileBuffer.subarray(0, 4).toString("utf8") === "%PDF";
+
+  if (
+    (proof.type === "image/jpeg" && !isJpeg) ||
+    (proof.type === "image/png" && !isPng) ||
+    (proof.type === "application/pdf" && !isPdf)
+  ) {
+    throw new Error("Isi file bukti tidak sesuai dengan format JPG, PNG, atau PDF.");
+  }
+
   const invoice = await assertParentOwnsInvoice(user.id, invoiceId);
 
   if (invoice.status === "LUNAS" || invoice.status === "DIBATALKAN") {
     throw new Error("Tagihan ini tidak bisa dikirim bukti pembayaran lagi.");
   }
 
-  const ext = path.extname(proof.name).toLowerCase() || ".bin";
   const safeFileName = `${invoice.invoiceNumber}-${randomUUID()}${ext}`.replace(
     /[^a-zA-Z0-9_.-]/g,
     "-",
   );
-  const uploadDir = path.join(process.cwd(), "public", "uploads", "proofs");
-  const filePath = path.join(uploadDir, safeFileName);
-  const publicUrl = `/uploads/proofs/${safeFileName}`;
   const paidAt = new Date(`${paidDate}T08:00:00.000Z`);
-
-  await mkdir(uploadDir, { recursive: true });
-  await writeFile(filePath, Buffer.from(await proof.arrayBuffer()));
+  const storedProof = await savePaymentProofFile({
+    fileName: safeFileName,
+    buffer: fileBuffer,
+    mime: proof.type,
+  });
 
   await prisma.$transaction(async (tx) => {
     const attemptCount = await tx.payment.count({ where: { invoiceId } });
@@ -115,7 +141,7 @@ export async function submitPaymentProof(formData: FormData) {
     await tx.paymentProof.create({
       data: {
         paymentId: payment.id,
-        fileUrl: publicUrl,
+        fileUrl: storedProof.fileUrl,
         fileName: proof.name,
         fileMime: proof.type,
         fileSize: proof.size,
@@ -138,7 +164,8 @@ export async function submitPaymentProof(formData: FormData) {
           invoiceNumber: invoice.invoiceNumber,
           amount: amount.toNumber(),
           method,
-          fileUrl: publicUrl,
+          fileUrl: storedProof.fileUrl,
+          storageKey: storedProof.storageKey,
         },
       },
     });

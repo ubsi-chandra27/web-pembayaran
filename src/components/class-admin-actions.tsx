@@ -23,8 +23,17 @@ type ClassRow = {
   id: string;
   name: string;
   level: string;
+  sppAmount: number | null;
   studentCount: number;
 };
+
+function rupiah(value: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 
 function Modal({
   title,
@@ -63,7 +72,13 @@ function toast(detail: { type: "success" | "error"; title: string; description?:
   window.dispatchEvent(new CustomEvent("azkia-toast", { detail }));
 }
 
-export function ClassAdminPanel({ classes }: { classes: ClassRow[] }) {
+export function ClassAdminPanel({
+  classes,
+  defaultSppAmount,
+}: {
+  classes: ClassRow[];
+  defaultSppAmount: number;
+}) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<ClassRow | null>(null);
@@ -203,6 +218,7 @@ export function ClassAdminPanel({ classes }: { classes: ClassRow[] }) {
                   </TableHead>
                   <TableHead>Kelas</TableHead>
                   <TableHead>Level</TableHead>
+                  <TableHead>SPP</TableHead>
                   <TableHead>Siswa</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
@@ -221,6 +237,14 @@ export function ClassAdminPanel({ classes }: { classes: ClassRow[] }) {
                     </TableCell>
                     <TableCell className="font-medium text-slate-950">{kelas.name}</TableCell>
                     <TableCell>{kelas.level || "-"}</TableCell>
+                    <TableCell>
+                      <p className="font-medium text-slate-900">
+                        {rupiah(kelas.sppAmount ?? defaultSppAmount)}
+                      </p>
+                      {!kelas.sppAmount && (
+                        <p className="text-xs text-slate-500">Ikut default</p>
+                      )}
+                    </TableCell>
                     <TableCell>{kelas.studentCount}</TableCell>
                     <TableCell>
                       <div className="flex justify-end">
@@ -240,7 +264,7 @@ export function ClassAdminPanel({ classes }: { classes: ClassRow[] }) {
                 ))}
                 {classes.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-sm text-slate-500">
+                    <TableCell colSpan={6} className="py-8 text-center text-sm text-slate-500">
                       Belum ada data kelas.
                     </TableCell>
                   </TableRow>
@@ -265,6 +289,18 @@ export function ClassAdminPanel({ classes }: { classes: ClassRow[] }) {
           <div className="space-y-2">
             <Label>Level Kelas</Label>
             <Input name="level" placeholder="TK A" className="h-10 bg-white" />
+          </div>
+          <div className="space-y-2">
+            <Label>Nominal SPP khusus</Label>
+            <Input
+              name="sppAmount"
+              inputMode="numeric"
+              placeholder={`Kosongkan untuk default ${rupiah(defaultSppAmount)}`}
+              className="h-10 bg-white"
+            />
+            <p className="text-xs text-slate-500">
+              Contoh PAUD: 75000. Jika kosong, kelas memakai SPP default.
+            </p>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" className="bg-white" onClick={() => setCreateOpen(false)}>
@@ -293,6 +329,19 @@ export function ClassAdminPanel({ classes }: { classes: ClassRow[] }) {
             <div className="space-y-2">
               <Label>Level Kelas</Label>
               <Input name="level" defaultValue={editing.level} className="h-10 bg-white" />
+            </div>
+            <div className="space-y-2">
+              <Label>Nominal SPP khusus</Label>
+              <Input
+                name="sppAmount"
+                inputMode="numeric"
+                defaultValue={editing.sppAmount ?? ""}
+                placeholder={`Kosongkan untuk default ${rupiah(defaultSppAmount)}`}
+                className="h-10 bg-white"
+              />
+              <p className="text-xs text-slate-500">
+                Nilai ini dipakai otomatis saat membuat tagihan dan transaksi SPP.
+              </p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" className="bg-white" onClick={() => setEditing(null)}>

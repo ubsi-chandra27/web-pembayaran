@@ -84,7 +84,7 @@ export function ParentPaymentProofForm({
           <Alert className="border-sky-200 bg-sky-50 text-sky-900">
             <Info className="size-4" />
             <AlertDescription>
-              File bukti disimpan lokal untuk demo. Produksi bisa diarahkan ke object storage.
+              File bukti disimpan di storage privat lokal dan hanya dapat dibuka oleh wali terkait atau staff berwenang.
             </AlertDescription>
           </Alert>
 

@@ -105,7 +105,13 @@ function notify(detail: { type: "success" | "error"; title: string; description?
   window.dispatchEvent(new CustomEvent("azkia-toast", { detail }));
 }
 
-export function CreateStudentDialog({ classes }: { classes: ClassOption[] }) {
+export function CreateStudentDialog({
+  classes,
+  demoDefaultsAllowed,
+}: {
+  classes: ClassOption[];
+  demoDefaultsAllowed: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -193,7 +199,18 @@ export function CreateStudentDialog({ classes }: { classes: ClassOption[] }) {
           </div>
           <div className="space-y-2">
             <Label>Password orang tua</Label>
-            <Input name="guardianPassword" defaultValue="demo12345" className="h-10 bg-white" />
+            <Input
+              name="guardianPassword"
+              defaultValue={demoDefaultsAllowed ? "demo12345" : ""}
+              required={!demoDefaultsAllowed}
+              placeholder={demoDefaultsAllowed ? "demo12345" : "Wajib diisi di production"}
+              className="h-10 bg-white"
+            />
+            <p className="text-xs text-slate-400">
+              {demoDefaultsAllowed
+                ? "Mode lokal masih boleh memakai password demo."
+                : "Mode production mewajibkan password wali saat akun dibuat."}
+            </p>
           </div>
           <div className="flex items-end justify-end gap-2">
             <Button type="button" variant="outline" className="bg-white" onClick={() => setOpen(false)}>
@@ -300,9 +317,11 @@ export function EditStudentDialog({
 export function SyncGuardianDialog({
   studentId,
   studentName,
+  demoDefaultsAllowed,
 }: {
   studentId: string;
   studentName: string;
+  demoDefaultsAllowed: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -364,7 +383,18 @@ export function SyncGuardianDialog({
           </div>
           <div className="space-y-2">
             <Label>Password awal</Label>
-            <Input name="guardianPassword" defaultValue="demo12345" className="h-10 bg-white" />
+            <Input
+              name="guardianPassword"
+              defaultValue={demoDefaultsAllowed ? "demo12345" : ""}
+              required={!demoDefaultsAllowed}
+              placeholder={demoDefaultsAllowed ? "demo12345" : "Wajib diisi di production"}
+              className="h-10 bg-white"
+            />
+            <p className="text-xs text-slate-400">
+              {demoDefaultsAllowed
+                ? "Mode lokal masih boleh memakai password demo."
+                : "Mode production mewajibkan password wali saat sinkron akun."}
+            </p>
           </div>
           <div className="flex items-end justify-end gap-2">
             <Button type="button" variant="outline" className="bg-white" onClick={() => setOpen(false)}>

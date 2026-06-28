@@ -1,8 +1,10 @@
-import { Banknote, CreditCard, FileText, Search, WalletCards } from "lucide-react";
+import Link from "next/link";
+import { Banknote, CreditCard, Download, FileText, Search, WalletCards } from "lucide-react";
 
 import { DeletePaymentButton } from "@/components/payment-report-actions";
 import { PrintButton } from "@/components/print-button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -90,6 +92,12 @@ export default async function AdminPembayaranPage({
   const waitingPayments = payments.filter((payment) => payment.status === "MENUNGGU_VERIFIKASI");
   const sum = (items: typeof payments) =>
     items.reduce((total, payment) => total + payment.amount.toNumber(), 0);
+  const exportParams = new URLSearchParams();
+
+  if (q) exportParams.set("q", q);
+  if (method) exportParams.set("method", method);
+  if (status) exportParams.set("status", status);
+  if (month) exportParams.set("month", month);
 
   return (
     <div className="space-y-6">
@@ -105,7 +113,15 @@ export default async function AdminPembayaranPage({
             Transaksi tunai diinput dari menu Transaksi. Halaman ini khusus untuk membaca, mencari, dan mencetak laporan.
           </p>
         </div>
-        <PrintButton label="Cetak Laporan" />
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" className="bg-white">
+            <Link href={`/admin/pembayaran/export${exportParams.size ? `?${exportParams}` : ""}`}>
+              <Download className="size-4" />
+              Export CSV
+            </Link>
+          </Button>
+          <PrintButton label="Cetak Laporan" />
+        </div>
       </div>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

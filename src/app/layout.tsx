@@ -15,6 +15,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "TK Islam Azkia - Web Pembayaran & Tabungan",
   description: "Portal pembayaran dan tabungan siswa TK Islam Azkia",
+  applicationName: "Azkia Bayar",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Azkia Bayar",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({

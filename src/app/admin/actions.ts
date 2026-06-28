@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { demoRoles, getCurrentUser, hashPassword, type DemoRole } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { allowDemoDefaults } from "@/lib/runtime-config";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -91,6 +92,23 @@ function academicYearPeriods(academicYear: { startsAt: Date }) {
   return periods;
 }
 
+function effectiveTariffAmount(
+  tariff: { name: string; amount: Prisma.Decimal },
+  studentClass?: { sppAmount: Prisma.Decimal | null } | null
+) {
+  const classSppAmount = studentClass?.sppAmount;
+
+  if (
+    tariff.name.toUpperCase() === "SPP" &&
+    classSppAmount &&
+    classSppAmount.greaterThan(0)
+  ) {
+    return classSppAmount;
+  }
+
+  return tariff.amount;
+}
+
 export async function createStudentWithGuardian(formData: FormData) {
   await requireRole("student.manage");
 
@@ -102,10 +120,16 @@ export async function createStudentWithGuardian(formData: FormData) {
   const guardianRelation = text(formData, "guardianRelation") || "Wali";
   const guardianPhone = text(formData, "guardianPhone");
   const guardianEmail = text(formData, "guardianEmail");
-  const guardianPassword = text(formData, "guardianPassword") || "demo12345";
+  const requestedGuardianPassword = text(formData, "guardianPassword");
+  const guardianPassword =
+    requestedGuardianPassword || (allowDemoDefaults() ? "demo12345" : "");
 
   if (!nis || !fullName || !classId || !gender) {
     throw new Error("NIS, nama siswa, kelas, dan jenis kelamin wajib diisi.");
+  }
+
+  if (guardianName && (guardianEmail || guardianPhone) && !guardianPassword) {
+    throw new Error("Password wali wajib diisi pada mode production.");
   }
 
   await prisma.$transaction(async (tx) => {
@@ -219,10 +243,16 @@ export async function addGuardianAccountToStudent(formData: FormData) {
   const guardianRelation = text(formData, "guardianRelation") || "Wali";
   const guardianEmail = text(formData, "guardianEmail");
   const guardianPhone = text(formData, "guardianPhone");
-  const guardianPassword = text(formData, "guardianPassword") || "demo12345";
+  const requestedGuardianPassword = text(formData, "guardianPassword");
+  const guardianPassword =
+    requestedGuardianPassword || (allowDemoDefaults() ? "demo12345" : "");
 
   if (!studentId || !guardianName || (!guardianEmail && !guardianPhone)) {
     throw new Error("Siswa, nama wali, dan email/WhatsApp wali wajib diisi.");
+  }
+
+  if (!guardianPassword) {
+    throw new Error("Password wali wajib diisi pada mode production.");
   }
 
   await prisma.$transaction(async (tx) => {
@@ -399,6 +429,7 @@ export async function createClass(formData: FormData) {
   const name = text(formData, "name");
   const level = text(formData, "level");
   const teacherId = text(formData, "teacherId");
+  const sppAmount = numberValue(formData, "sppAmount");
 
   if (!name) {
     throw new Error("Nama kelas wajib diisi.");
@@ -418,6 +449,7 @@ export async function createClass(formData: FormData) {
       academicYearId,
       name,
       level: level || null,
+      sppAmount: sppAmount.greaterThan(0) ? sppAmount : null,
       teacherId: teacherId || null,
     },
   });
@@ -425,6 +457,7 @@ export async function createClass(formData: FormData) {
   revalidatePath("/admin/kelas");
   revalidatePath("/admin/siswa");
   revalidatePath("/admin/tagihan");
+  revalidatePath("/admin/transaksi");
 
   return {
     ok: true,
@@ -440,6 +473,7 @@ export async function updateClass(formData: FormData) {
   const name = text(formData, "name");
   const level = text(formData, "level");
   const teacherId = text(formData, "teacherId");
+  const sppAmount = numberValue(formData, "sppAmount");
 
   if (!id || !name) {
     throw new Error("Kelas dan nama kelas wajib diisi.");
@@ -451,6 +485,7 @@ export async function updateClass(formData: FormData) {
       ...(academicYearId ? { academicYearId } : {}),
       name,
       level: level || null,
+      sppAmount: sppAmount.greaterThan(0) ? sppAmount : null,
       ...(teacherId ? { teacherId } : {}),
     },
   });
@@ -458,6 +493,7 @@ export async function updateClass(formData: FormData) {
   revalidatePath("/admin/kelas");
   revalidatePath("/admin/siswa");
   revalidatePath("/admin/tagihan");
+  revalidatePath("/admin/transaksi");
 
   return {
     ok: true,
@@ -540,9 +576,13 @@ export async function createIndividualInvoice(formData: FormData) {
   }
 
   await prisma.$transaction(async (tx) => {
-    const [activeYear, tariff] = await Promise.all([
+    const [activeYear, tariff, student] = await Promise.all([
       tx.academicYear.findFirst({ where: { isActive: true } }),
       tx.baseTariff.findUnique({ where: { id: tariffId } }),
+      tx.student.findUnique({
+        where: { id: studentId },
+        include: { class: true },
+      }),
     ]);
 
     if (!activeYear) {
@@ -551,11 +591,16 @@ export async function createIndividualInvoice(formData: FormData) {
     if (!tariff || !tariff.isActive) {
       throw new Error("Tarif pokok tidak ditemukan atau tidak aktif.");
     }
+    if (!student) {
+      throw new Error("Siswa tidak ditemukan.");
+    }
 
     const periodMonth = periodMonthRaw ? Number(periodMonthRaw) : null;
     const periodYear = periodYearRaw ? Number(periodYearRaw) : new Date().getFullYear();
     const invoiceNumber = await nextInvoiceNumber(tx);
-    const amount = manualAmount.greaterThan(0) ? manualAmount : tariff.amount;
+    const amount = manualAmount.greaterThan(0)
+      ? manualAmount
+      : effectiveTariffAmount(tariff, student.class);
     const title = manualTitle || periodTitle(tariff.name, periodMonth, periodYear);
 
     const invoice = await tx.invoice.create({
@@ -631,14 +676,17 @@ export async function createBulkInvoices(formData: FormData) {
         status: "ACTIVE",
         ...(classId && classId !== "ALL" ? { classId } : {}),
       },
-      select: { id: true },
+      include: { class: true },
     });
     const periodMonth = periodMonthRaw ? Number(periodMonthRaw) : null;
     const periodYear = periodYearRaw ? Number(periodYearRaw) : new Date().getFullYear();
-    const amount = manualAmount.greaterThan(0) ? manualAmount : tariff.amount;
     const title = manualTitle || periodTitle(tariff.name, periodMonth, periodYear);
 
     for (const student of students) {
+      const amount = manualAmount.greaterThan(0)
+        ? manualAmount
+        : effectiveTariffAmount(tariff, student.class);
+
       const existing = await tx.invoice.findFirst({
         where: {
           studentId: student.id,
@@ -684,12 +732,16 @@ export async function createBulkInvoices(formData: FormData) {
         userId: user.id,
         action: "BULK_INVOICES_CREATED",
         entity: "invoices",
-        entityId: tariffId,
+          entityId: tariffId,
         after: {
           scope,
           classId: classId || null,
           count: students.length,
-          amount: amount.toNumber(),
+          amount: manualAmount.greaterThan(0) ? manualAmount.toNumber() : null,
+          amountSource:
+            tariff.name.toUpperCase() === "SPP" && !manualAmount.greaterThan(0)
+              ? "CLASS_SPP_OR_DEFAULT"
+              : "TARIFF_OR_MANUAL",
           periodMonth,
           periodYear,
         },
@@ -872,6 +924,51 @@ export async function updateUserAccount(formData: FormData) {
   revalidatePath("/admin/siswa");
 }
 
+export async function resetUserPassword(formData: FormData) {
+  const actor = await requireRole("account.manage");
+  const id = text(formData, "id");
+  const requestedPassword = text(formData, "password");
+  const password = requestedPassword || (allowDemoDefaults() ? "demo12345" : "");
+
+  if (!id) {
+    throw new Error("Akun tidak ditemukan.");
+  }
+
+  if (!password) {
+    throw new Error("Reset ke password demo dimatikan pada mode production.");
+  }
+
+  const target = await prisma.user.update({
+    where: { id },
+    data: { passwordHash: hashPassword(password) },
+    select: { id: true, name: true, email: true, phone: true, role: true },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId: actor.id,
+      action: "ACCOUNT_PASSWORD_RESET",
+      entity: "users",
+      entityId: target.id,
+      after: {
+        targetName: target.name,
+        targetEmail: target.email,
+        targetPhone: target.phone,
+        targetRole: target.role,
+        resetToDefault: password === "demo12345",
+      },
+    },
+  });
+
+  revalidatePath("/admin/akun");
+  revalidatePath("/admin/audit-log");
+
+  return {
+    ok: true,
+    message: `Password ${target.name} direset ke ${password}.`,
+  };
+}
+
 export async function createUserAccount(formData: FormData) {
   await requireRole("account.manage");
 
@@ -879,10 +976,14 @@ export async function createUserAccount(formData: FormData) {
   const email = text(formData, "email");
   const phone = text(formData, "phone");
   const role = text(formData, "role");
-  const password = text(formData, "password") || "demo12345";
+  const password = text(formData, "password") || (allowDemoDefaults() ? "demo12345" : "");
 
   if (!name || !role || (!email && !phone)) {
     throw new Error("Nama, role, dan minimal email/WhatsApp wajib diisi.");
+  }
+
+  if (!password) {
+    throw new Error("Password wajib diisi pada mode production.");
   }
 
   await prisma.user.create({
@@ -1128,14 +1229,14 @@ export async function createSavingsTransaction(formData: FormData) {
   const amount = numberValue(formData, "amount");
   const notes = text(formData, "notes");
 
-  const validTypes = ["SETORAN", "PENARIKAN"];
+  const validTypes = ["SETORAN", "PENARIKAN", "KOREKSI_MASUK", "KOREKSI_KELUAR"];
 
   if (!studentId || !validTypes.includes(type) || amount.lessThanOrEqualTo(0)) {
     throw new Error("Siswa, jenis transaksi, dan nominal wajib diisi.");
   }
 
-  if (type === "PENARIKAN" && !notes) {
-    throw new Error("Catatan wajib diisi untuk penarikan.");
+  if (["PENARIKAN", "KOREKSI_MASUK", "KOREKSI_KELUAR"].includes(type) && !notes) {
+    throw new Error("Catatan wajib diisi untuk penarikan dan koreksi.");
   }
 
   await prisma.$transaction(async (tx) => {
@@ -1147,7 +1248,7 @@ export async function createSavingsTransaction(formData: FormData) {
       throw new Error("Akun tabungan siswa tidak aktif atau belum tersedia.");
     }
 
-    const isOut = type === "PENARIKAN";
+    const isOut = type === "PENARIKAN" || type === "KOREKSI_KELUAR";
     const balanceBefore = account.balance;
     const balanceAfter = isOut ? balanceBefore.minus(amount) : balanceBefore.plus(amount);
 
@@ -1575,6 +1676,7 @@ export async function createCashTransaction(formData: FormData) {
 
       const isSpp = tariff.name.toUpperCase() === "SPP";
       if (isSpp) {
+        const monthlySppAmount = effectiveTariffAmount(tariff, currentStudent.class);
         const periods = academicYearPeriods(activeYear);
         const paidMonth = paidAt.getUTCMonth() + 1;
         const paidMonthIndex = periods.findIndex((period) => period.month === paidMonth);
@@ -1605,7 +1707,7 @@ export async function createCashTransaction(formData: FormData) {
             continue;
           }
 
-          const amount = remaining.greaterThan(tariff.amount) ? tariff.amount : remaining;
+          const amount = remaining.greaterThan(monthlySppAmount) ? monthlySppAmount : remaining;
           const invoice = existingInvoice
             ? await tx.invoice.update({
                 where: { id: existingInvoice.id },

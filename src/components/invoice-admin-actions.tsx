@@ -3,7 +3,17 @@
 import { useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Edit, Filter, Loader2, Plus, SlidersHorizontal, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Edit,
+  Filter,
+  Loader2,
+  MessageCircle,
+  Plus,
+  SlidersHorizontal,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import {
   cancelInvoice,
@@ -20,6 +30,7 @@ type StudentOption = {
   id: string;
   nis: string;
   name: string;
+  classId: string;
   className: string;
 };
 
@@ -33,7 +44,17 @@ type TariffOption = {
 type ClassOption = {
   id: string;
   name: string;
+  sppAmount: number | null;
+  studentCount: number;
 };
+
+function rupiah(value: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 
 type InvoiceRow = {
   id: string;
@@ -94,6 +115,8 @@ export function CreateInvoiceDialog({
   const router = useRouter();
   const [individualOpen, setIndividualOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkClassId, setBulkClassId] = useState("ALL");
+  const [bulkTariffId, setBulkTariffId] = useState("");
   const [isPending, startTransition] = useTransition();
   const currentYear = new Date().getFullYear();
   const months = [
@@ -110,6 +133,22 @@ export function CreateInvoiceDialog({
     "November",
     "Desember",
   ];
+  const selectedBulkTariff = tariffs.find((tariff) => tariff.id === bulkTariffId);
+  const selectedBulkStudents = students.filter(
+    (student) => bulkClassId === "ALL" || student.classId === bulkClassId
+  );
+  const estimatedBulkAmount =
+    selectedBulkTariff
+      ? selectedBulkStudents.reduce((total, student) => {
+          const kelas = classes.find((item) => item.id === student.classId);
+          const amount =
+            selectedBulkTariff.name.toUpperCase() === "SPP" && kelas?.sppAmount
+              ? kelas.sppAmount
+              : selectedBulkTariff.amount;
+
+          return total + amount;
+        }, 0)
+      : 0;
 
   function handleIndividual(formData: FormData) {
     startTransition(async () => {
@@ -236,18 +275,29 @@ export function CreateInvoiceDialog({
           <input type="hidden" name="scope" value="CLASS" />
           <div className="space-y-2 md:col-span-2">
             <Label>Sasaran kelas</Label>
-            <select name="classId" className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm">
+            <select
+              name="classId"
+              value={bulkClassId}
+              onChange={(event) => setBulkClassId(event.target.value)}
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
+            >
               <option value="ALL">Semua siswa aktif</option>
               {classes.map((kelas) => (
                 <option key={kelas.id} value={kelas.id}>
-                  {kelas.name}
+                  {kelas.name} ({kelas.studentCount} siswa)
                 </option>
               ))}
             </select>
           </div>
           <div className="space-y-2">
             <Label>Tagihan</Label>
-            <select name="tariffId" required className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm">
+            <select
+              name="tariffId"
+              required
+              value={bulkTariffId}
+              onChange={(event) => setBulkTariffId(event.target.value)}
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
+            >
               <option value="">Pilih tagihan</option>
               {tariffs.map((tariff) => (
                 <option key={tariff.id} value={tariff.id}>
@@ -278,6 +328,28 @@ export function CreateInvoiceDialog({
           <div className="space-y-2 md:col-span-2">
             <Label>Catatan</Label>
             <Input name="notes" placeholder="Opsional" className="h-10 bg-white" />
+          </div>
+          <div className="md:col-span-2 rounded-lg border border-[#b7d889] bg-[#f3f8ea] p-4">
+            <p className="text-sm font-semibold text-slate-950">Preview tagihan massal</p>
+            <div className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+              <div>
+                <p className="text-xs text-slate-500">Sasaran</p>
+                <p className="font-semibold text-slate-950">{selectedBulkStudents.length} siswa</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Estimasi total</p>
+                <p className="font-semibold text-rose-700">{rupiah(estimatedBulkAmount)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Tagihan</p>
+                <p className="font-semibold text-slate-950">{selectedBulkTariff?.name ?? "-"}</p>
+              </div>
+            </div>
+            {selectedBulkTariff?.name.toUpperCase() === "SPP" && (
+              <p className="mt-3 text-xs text-slate-600">
+                Nominal SPP mengikuti nominal khusus kelas jika ada, selain itu memakai tarif SPP default.
+              </p>
+            )}
           </div>
           <div className="md:col-span-2 flex justify-end gap-2">
             <Button type="button" variant="outline" className="bg-white" onClick={() => setBulkOpen(false)}>
@@ -521,6 +593,67 @@ export function CancelInvoiceButton({
                     ? "Ya, Hapus Permanen"
                     : "Ya, Batalkan"}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function BulkWhatsAppButton({ links }: { links: string[] }) {
+  const [open, setOpen] = useState(false);
+  const uniqueLinks = Array.from(new Set(links)).filter(Boolean);
+  const limitedLinks = uniqueLinks.slice(0, 20);
+
+  function openLinks() {
+    limitedLinks.forEach((href, index) => {
+      window.setTimeout(() => window.open(href, "_blank", "noopener,noreferrer"), index * 250);
+    });
+    setOpen(false);
+  }
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-10 bg-white text-[#078435]"
+        onClick={() => setOpen(true)}
+        disabled={uniqueLinks.length === 0}
+      >
+        <MessageCircle className="size-4" />
+        WhatsApp Massal
+      </Button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/35 px-4 backdrop-blur-sm">
+          <div className="w-[min(460px,calc(100vw-2rem))] rounded-lg bg-white shadow-xl ring-1 ring-slate-200">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">Kirim WhatsApp massal?</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Sistem akan membuka {limitedLinks.length} tab WhatsApp dari daftar tagihan yang sedang tampil.
+                </p>
+              </div>
+              <Button type="button" variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Tutup">
+                <X className="size-4" />
+              </Button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Browser mungkin memblokir banyak popup. Jika terjadi, izinkan popup untuk localhost atau kirim satu per satu.
+                {uniqueLinks.length > 20 && " Untuk keamanan browser, batch ini dibatasi 20 pesan pertama."}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button type="button" variant="outline" className="bg-white" onClick={() => setOpen(false)}>
+                  Batal
+                </Button>
+                <Button type="button" className="bg-[#10b447] text-white hover:bg-[#078435]" onClick={openLinks}>
+                  <MessageCircle className="size-4" />
+                  Buka WhatsApp
+                </Button>
+              </div>
             </div>
           </div>
         </div>

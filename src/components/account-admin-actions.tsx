@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { KeyRound, Loader2, Pencil, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import { createUserAccount, updateUserAccount } from "@/app/admin/actions";
+import { createUserAccount, resetUserPassword, updateUserAccount } from "@/app/admin/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,11 @@ function notify(detail: { type: "success" | "error"; title: string; description?
   window.dispatchEvent(new CustomEvent("azkia-toast", { detail }));
 }
 
-export function CreateAccountDialog() {
+export function CreateAccountDialog({
+  demoDefaultsAllowed,
+}: {
+  demoDefaultsAllowed: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -100,7 +104,18 @@ export function CreateAccountDialog() {
               </div>
               <div className="space-y-2">
                 <Label>Password</Label>
-                <Input name="password" defaultValue="demo12345" className="bg-white" />
+                <Input
+                  name="password"
+                  defaultValue={demoDefaultsAllowed ? "demo12345" : ""}
+                  required={!demoDefaultsAllowed}
+                  placeholder={demoDefaultsAllowed ? "demo12345" : "Wajib diisi di production"}
+                  className="bg-white"
+                />
+                <p className="text-xs text-slate-400">
+                  {demoDefaultsAllowed
+                    ? "Mode lokal masih boleh memakai password demo."
+                    : "Mode production mewajibkan password unik saat akun dibuat."}
+                </p>
               </div>
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
                 <Button type="button" variant="outline" className="bg-white" onClick={() => setOpen(false)} disabled={isPending}>
@@ -249,6 +264,116 @@ export function EditAccountDialog({
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function ResetAccountPasswordButton({
+  user,
+  demoResetAllowed,
+}: {
+  user: { id: string; name: string };
+  demoResetAllowed: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  function handleReset() {
+    if (!demoResetAllowed) return;
+
+    const formData = new FormData();
+    formData.set("id", user.id);
+    formData.set("password", "demo12345");
+
+    startTransition(async () => {
+      try {
+        const result = await resetUserPassword(formData);
+        setOpen(false);
+        notify({
+          type: "success",
+          title: "Password direset",
+          description: result.message,
+        });
+        router.refresh();
+      } catch (error) {
+        notify({
+          type: "error",
+          title: "Gagal reset password",
+          description: error instanceof Error ? error.message : "Terjadi kesalahan.",
+        });
+      }
+    });
+  }
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        onClick={() => setOpen(true)}
+        disabled={!demoResetAllowed}
+        aria-label={`Reset password ${user.name}`}
+        className="text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40"
+        title={
+          demoResetAllowed
+            ? "Reset password ke demo12345"
+            : "Reset demo dimatikan pada mode production"
+        }
+      >
+        <KeyRound className="size-4" />
+      </Button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/35 px-4 backdrop-blur-sm">
+          <div className="w-[min(430px,calc(100vw-2rem))] rounded-lg bg-white shadow-xl ring-1 ring-slate-200">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">Reset password?</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Password akun {user.name} akan diubah ke demo12345.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setOpen(false)}
+                aria-label="Tutup"
+                disabled={isPending}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+            <div className="p-5">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Beritahu pengguna untuk mengganti password setelah login berikutnya.
+              </div>
+              <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="bg-white"
+                  onClick={() => setOpen(false)}
+                  disabled={isPending}
+                >
+                  Batal
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleReset}
+                  disabled={isPending}
+                  className="bg-amber-600 text-white hover:bg-amber-700"
+                >
+                  {isPending ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
+                  Reset Password
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

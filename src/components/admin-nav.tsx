@@ -9,8 +9,10 @@ import {
   FileCheck,
   FileText,
   GraduationCap,
+  HardDriveDownload,
   Images,
   LayoutDashboard,
+  ScrollText,
   ReceiptText,
   Settings,
   UserCog,
@@ -28,8 +30,11 @@ const nav = [
   { href: "/admin/tagihan", label: "Tagihan", icon: FileText },
   { href: "/admin/transaksi", label: "Transaksi", icon: CreditCard },
   { href: "/admin/pembayaran", label: "Laporan Pembayaran", icon: WalletCards },
+  { href: "/admin/tunggakan", label: "Tunggakan", icon: FileText },
   { href: "/admin/verifikasi", label: "Verifikasi", icon: FileCheck },
   { href: "/admin/tabungan", label: "Tabungan", icon: BookOpenCheck },
+  { href: "/admin/audit-log", label: "Audit Log", icon: ScrollText },
+  { href: "/admin/database", label: "Backup Data", icon: HardDriveDownload },
 ];
 
 const settingsNav = [
